@@ -109,11 +109,11 @@ textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5p
       <button data-k="fwd" aria-label="Forward">▲</button>
       <button data-k="left" aria-label="Left">◀</button><button data-k="back" aria-label="Back">▼</button><button data-k="right" aria-label="Right">▶</button>
     </div>
-    <div class="hint">Drag to orbit · Right-drag to pan · Scroll to zoom<br>Click a screen to select · Drop a file on the view to load it on the selected screen</div>
+    <div class="hint">Drag to orbit · Right-drag to pan · Scroll to zoom<br>Click a screen to select it</div>
   </div>
 
   <aside class="rack">
-    <section class="sec">
+    <section class="sec" hidden>
       <h2>Show moment</h2>
       <div class="row show" id="presets"></div>
       <div class="transport">
@@ -150,7 +150,7 @@ textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5p
       <label class="tog"><input type="checkbox" id="tNight" checked> Show lighting (dim venue)</label>
     </section>
 
-    <section class="sec">
+    <section class="sec" hidden>
       <h2>Layout export</h2>
       <p class="note">Move any screen in the inspector, then copy the layout and send it back so the next version locks it in.</p>
       <div class="row"><button id="copyLayout">Copy layout</button><button id="resetLayout">Reset all placement</button></div>
@@ -762,31 +762,10 @@ function buildInspector(){
       <dt>Files</dt><dd>${files} · HAP</dd>
     </dl>
     ${s.note?`<p class="note">${s.note}</p>`:''}
-    <div class="row modes">${modeBtns}</div>
-    <div class="row">
-      <label class="file"><input type="file" id="upload" accept="image/*,video/*">Upload image / video</label>
-      <select id="fit" aria-label="Fit"><option value="stretch">Stretch to spec</option><option value="cover">Fill (crop)</option><option value="contain">Fit (letterbox)</option></select>
-      ${s.media?'<button id="clear">Remove file</button>':''}
-    </div>
     ${mediaInfo}
-    <h2 style="margin-top:4px">Placement ${instSel}</h2>
-    <div class="place">
-      <label for="pX">East–west</label><input type="range" id="pX" min="-6" max="6" step="0.05" value="${P.dx}"><output id="oX">${P.dx.toFixed(2)} m</output>
-      <label for="pZ">North–south</label><input type="range" id="pZ" min="-6" max="6" step="0.05" value="${P.dz}"><output id="oZ">${P.dz.toFixed(2)} m</output>
-      <label for="pY">Height</label><input type="range" id="pY" min="-3" max="5" step="0.05" value="${P.dy}"><output id="oY">${P.dy.toFixed(2)} m</output>
-      <label for="pR">Rotate</label><input type="range" id="pR" min="-180" max="180" step="1" value="${P.rot}"><output id="oR">${P.rot}°</output>
-    </div>
-    <div class="row"><button id="focus">Fly to screen</button><button id="resetOne">Reset placement</button></div>`;
-  $('fit').value=s.fit;
-  el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{ clearMedia(s); s.mode=b.dataset.m; render(s); buildList(); buildInspector(); });
-  $('fit').onchange=e=>{ s.fit=e.target.value; render(s); };
-  $('upload').onchange=e=>{ const f=e.target.files[0]; if (f) loadMedia(s,f); };
+    <div class="row"><button id="focus">Fly to screen</button>${instSel}</div>`;
   $('focus').onclick=()=>focusInst(inst);
-  $('resetOne').onclick=()=>{ Object.assign(inst.place,{dx:0,dz:0,dy:0,rot:0}); applyPlace(inst); buildInspector(); };
-  if ($('clear')) $('clear').onclick=()=>{ clearMedia(s); render(s); buildList(); buildInspector(); };
   if ($('instSel')) $('instSel').onchange=e=>select(s.id,+e.target.value);
-  [['pX','dx','oX',' m'],['pZ','dz','oZ',' m'],['pY','dy','oY',' m'],['pR','rot','oR','°']].forEach(([id,k,o,u])=>{
-    $(id).oninput=e=>{ inst.place[k]=+e.target.value; $(o).textContent=(k==='rot'?inst.place[k]:inst.place[k].toFixed(2))+u; applyPlace(inst); }; });
 }
 function applyPlace(inst){ const P=inst.place; inst.outer.position.set(inst.pivot.x+P.dx, P.dy, inst.pivot.z+P.dz); inst.outer.rotation.y=THREE.MathUtils.degToRad(P.rot); updateHelpers(); }
 function clearMedia(s){ if (!s.media) return; if (s.media.type==='video') s.media.el.pause(); URL.revokeObjectURL(s.media.url); s.media=null; }
@@ -827,7 +806,7 @@ canvas.addEventListener('pointerup',e=>{ if (!down||Math.hypot(e.clientX-down[0]
   const r=canvas.getBoundingClientRect(); mouse.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(mouse,camera); const hit=ray.intersectObjects(pickables)[0]; if (hit) select(hit.object.userData.sid, hit.object.userData.inst); });
 $('stage').addEventListener('dragover',e=>e.preventDefault());
-$('stage').addEventListener('drop',e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if (f) loadMedia(byId(sel.id),f); });
+
 
 /* ---------- first-person walk ---------- */
 const FP = { on:false, yaw:0, pitch:0, pos:new THREE.Vector3(), ground:0, keys:{}, goal:null };
