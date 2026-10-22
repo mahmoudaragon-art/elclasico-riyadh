@@ -78,6 +78,8 @@ button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .place output{text-align:right;font-variant-numeric:tabular-nums}
 textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5px;background:var(--raise);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box}
 
+a.btnlink{font:inherit;color:#fff;background:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:7px 12px;text-decoration:none}
+a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
 #mini{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;width:300px;height:150px;border:1px solid var(--line);border-radius:6px;background:rgba(9,11,16,.85);pointer-events:none}
 .pad{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:40px;display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:6px}
 .pad button{padding:0;font-size:18px;background:rgba(23,28,39,.85);touch-action:none;user-select:none}
@@ -122,6 +124,12 @@ textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5p
         <button id="restart">Restart sync</button>
         <span class="clock" id="clock">00:00</span>
       </div>
+    </section>
+
+    <section class="sec">
+      <h2>Display C text</h2>
+      <p class="note">Edit every line on Display C from its page. Keep this preview open: it updates as you type.</p>
+      <div class="row"><a class="btnlink" href="display-c/" target="_blank" rel="noopener">Open Display C editor ↗</a></div>
     </section>
 
     <section class="sec">
@@ -170,6 +178,253 @@ textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5p
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* Display C walking-messages strip (Omar's draft 8 engine), ported from SVG to Canvas 2D for the 3D preview.
+   Same constants, kashida rule, timing and moods as display-c/. Text comes from the shared copy store. */
+const StripC = (() => {
+  const W = 20160, HH = 1440, V = 680, EMIT = 7, LOOP = 21;
+  const FS = 150, PAD = 70, BOX_T = 640, BOX_H = 300, BASE = 838, TYPE_W = 330, BW = 800, RW = 400, TAT = "ـ";
+  const STOPS = [0, 2800, 5700, 8900, 11300, 14000, 16700, 1e9];
+  const curves = [[4800, 5920], [11040, 14400], [17600, 19200]];
+  const SF = '"STC Forward", Tahoma, sans-serif';
+  const GREEN = "#60BC94";
+  const MOODS = [
+    ["calm", "calm", "buzz", "peek", "invert", "dance", "slide"],
+    ["dance", "calm", "buzz", "peek", "invert", "dance", "slide"],
+    ["calm", "calm", "buzz", "peek", "invert", "wait", "slide"]];
+  const TOPPOS = [[2700, 320, 130], [6800, 320, 150], [9920, 320, 130], [16480, 320, 130]];
+  const DEFAULT = {
+    top: ["حسابك *كامل* من جوالك", "ليلة *الكلاسيكو*", "كل *هجمة* فيها *مكسب*", "*حساب مكسب* · حوّل *بثواني*"],
+    sub: "EL CLÁSICO NIGHT",
+    scripts: [
+      ["*حيّاك..* خلني أمشي معك", "إلا على فكرة.. فتحت *حساب مكسب؟*", "لا تسوي نفسك *ما سمعت*", "*لحظة..* لا تروح بدوني", "أقولك *افتحه الحين*", "ترى *بمشي معك* لين تفتحه", "طيب.. *استمتع بالمباراة* وبعدين نكمل"],
+      ["*حيّاك* يا كابتن", "*الكلاسيكو* بعد شوي.. *جاهز؟*", "فتحت *حساب مكسب* ولا لا؟", "الباب ما هو *تسلل..* كمّل", "*تمريرة* أخيرة.. *افتحه* الحين", "حتى *الحكم* فتح.. باقي *انت*", "يلا.. *استمتع بالمباراة*"],
+      ["*أهلين..* أنا ماشي معك", "سؤال سريع: عندك *حساب مكسب؟*", "ما رديت *علي..*", "لا تحاول *تهرب* من الباب", "*افتحه* من جوالك *بدقايق*", "أنا *صابر..* وأستناك", "ماشي.. *استمتع بالكلاسيكو*"]]
+  };
+  const KEY = "elclasico-c-copy-v1";
+  const clone = o => JSON.parse(JSON.stringify(o));
+  function valid(j) { return j && Array.isArray(j.top) && j.top.length === 4 && Array.isArray(j.scripts) && j.scripts.length === 3 && j.scripts.every(r => Array.isArray(r) && r.length === 7); }
+  function load() { try { const j = JSON.parse(localStorage.getItem(KEY) || "null"); if (valid(j)) return j; } catch (e) {} return clone(DEFAULT); }
+  let copy = load();
+
+  const clamp = x => Math.min(1, Math.max(0, x));
+  const ease = x => 1 - Math.pow(1 - clamp(x), 3);
+  const inout = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+  const back = x => { x = clamp(x); const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+  const kpulse = q => { q = ((q % 2.4) + 2.4) % 2.4; if (q < 0.5) return back(q / 0.5); if (q < 1.1) return 1; if (q < 1.6) return 1 - inout((q - 1.1) / 0.5); return 0; };
+
+  const mctx = document.createElement("canvas").getContext("2d");
+  let wCache = {};
+  const width = (w, b) => { const k = b + w; if (wCache[k] != null) return wCache[k]; mctx.font = `${b ? BW : RW} ${FS}px ${SF}`; return wCache[k] = mctx.measureText(w).width; };
+  let SPACE = FS * 0.28, SENDER_W = 330;
+  function measureBase() { wCache = {}; lineCache = {}; tops = null;
+    SPACE = width("ا ا", false) - 2 * width("ا", false) || SPACE;
+    mctx.font = `${RW} 50px ${SF}`; SENDER_W = mctx.measureText("stc bank · الآن").width || SENDER_W; }
+
+  function parse(m) {
+    const out = []; let bold = false;
+    for (let raw of m.split(" ")) {
+      if (!raw) continue;
+      let b = bold;
+      if (raw.startsWith("*")) { raw = raw.slice(1); b = true; bold = true; }
+      let end = false; if (raw.endsWith("*")) { raw = raw.slice(0, -1); end = true; }
+      out.push({ t: raw, b }); if (end) bold = false;
+    }
+    return out;
+  }
+  const NONJOIN = "اأإآدذرزوؤةءى", ALEFS = "اأإآ";
+  const isL = c => c >= "ء" && c <= "ي", isD = c => c >= "ً" && c <= "ْ";
+  function kashidaAt(w) {
+    const idx = [...w].map((c, i) => isL(c) ? i : -1).filter(i => i >= 0);
+    const m = w.match(/^[وفبك]?ال/), art = m ? m[0].length : -1, cands = [];
+    for (let n = 0; n < idx.length - 1; n++) {
+      const i = idx[n], j = idx[n + 1];
+      if (NONJOIN.includes(w[i])) continue;
+      if ([...w.slice(i + 1, j)].some(c => !isD(c))) continue;
+      if (w[i] === "ل" && ALEFS.includes(w[j])) continue;
+      if (j === art) continue;
+      cands.push(j);
+    }
+    if (!cands.length) return -1;
+    const lastJ = idx[idx.length - 1], seed = [...w].reduce((a, c) => a + c.charCodeAt(0), 0) % 10;
+    if (cands[cands.length - 1] === lastJ && seed < 8) return lastJ;
+    const others = cands.filter(c => c !== lastJ), pool = others.length ? others : cands, mid = w.length / 2;
+    return pool.reduce((b, c) => Math.abs(c - mid) < Math.abs(b - mid) ? c : b);
+  }
+  function tokens(m, size) {
+    const k = size / FS; let used = 0;
+    return parse(m).map(o => {
+      const at = o.b && used < 2 && /[ء-ي]/.test(o.t) ? kashidaAt(o.t) : -1;
+      if (at < 0) return { ...o, w: width(o.t, o.b) * k };
+      used++;
+      const a = o.t.slice(0, at) + TAT, bb = TAT + o.t.slice(at);
+      return { ...o, kash: true, a, bb, wa: width(a, o.b) * k, wb: width(bb, o.b) * k, tw: width(TAT, o.b) * k };
+    });
+  }
+  function place(toks, exts, sp) {
+    let cur = 0, ki = 0; const pos = [];
+    toks.forEach(o => {
+      if (!o.kash) { pos.push({ c: cur - o.w / 2, r: cur, l: cur - o.w }); cur -= o.w + sp; return; }
+      const g = exts[ki++] || 0, r = cur;
+      const ca = cur - o.wa / 2, cb = cur - o.wa - g - o.wb / 2;
+      cur -= o.wa + g + o.wb;
+      pos.push({ ca, cb, midL: cur + o.wb - 3, g: g + 6, r, l: cur });
+      cur -= sp;
+    });
+    return { pos, total: -cur - sp };
+  }
+  let lineCache = {};
+  const lineData = m => lineCache[m] || (lineCache[m] = (() => { const toks = tokens(m, FS); return { toks, nk: toks.filter(o => o.kash).length }; })());
+
+  // draw a token run. tr(i,p) -> {dy, rot(deg), rx, ry}; op(i) -> alpha
+  function drawToks(ctx, toks, pos, off, y, size, tr, op) {
+    toks.forEach((o, i) => {
+      const p = pos[i], a = op ? op(i) : 1; if (a <= 0.001) return;
+      const T = tr ? tr(i, p) : null;
+      ctx.save(); ctx.globalAlpha *= a;
+      if (T) { ctx.translate(0, T.dy || 0); if (T.rot) { ctx.translate(T.rx, T.ry); ctx.rotate(T.rot * Math.PI / 180); ctx.translate(-T.rx, -T.ry); } }
+      ctx.font = `${o.b ? BW : RW} ${size}px ${SF}`; ctx.textBaseline = "alphabetic";
+      ctx.textAlign = "center"; ctx.direction = "rtl";
+      if (!o.kash) { ctx.fillText(o.t, off + p.c, y); ctx.restore(); return; }
+      ctx.fillText(o.a, off + p.ca, y); ctx.fillText(o.bb, off + p.cb, y);
+      const sc = Math.max(0.001, p.g / o.tw);
+      ctx.translate(off + p.midL, 0); ctx.scale(sc, 1); ctx.textAlign = "left"; ctx.direction = "ltr"; ctx.fillText(TAT, 0, y);
+      ctx.restore();
+    });
+  }
+
+  let tops = null;
+  function buildTops() { tops = TOPPOS.map(([cx, y, size], li) => { const toks = tokens(copy.top[li] || "", size); return { cx, y, size, toks, nk: toks.filter(o => o.kash).length }; }); }
+
+  const squares = [];
+  curves.forEach(([a, b]) => { for (let x = a + 60; x + 90 <= b - 30; x += 130) for (const y of [150, 290]) squares.push({ x, y }); });
+  const chevrons = [];
+  [[3960, 4700], [14480, 15280]].forEach(([a, b]) => { for (let i = 0; i < 3; i++) chevrons.push({ i, x: a + 110 + i * ((b - a - 220) / 2) }); });
+
+  // the long stc slider along the bottom: white bar, green square of the same height at its leading end
+  const SL = { x0: 0, x1: 20030, y: 1293, th: 16 };
+  function sliderSpan(T) {
+    const q = ((T % LOOP) + LOOP) % LOOP / LOOP;
+    const e = inout(q / 0.72), s = inout((q - 0.86) / 0.11);
+    return [s, e];
+  }
+
+  let layer = null, lctx = null, logo = null;
+  function setLogo(img) { logo = img; }
+
+  function render(ctx, T) {
+    if (!tops) buildTops();
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = "#fff";
+    // slider
+    { const [s, e] = sliderSpan(T), L = SL.x1 - SL.x0 - SL.th;
+      if (e > s + 0.0005) { const a = SL.x0 + L * s, b = SL.x0 + L * e;
+        ctx.fillStyle = "#fff"; ctx.fillRect(a, SL.y, b - a, SL.th); ctx.fillStyle = GREEN; ctx.fillRect(b, SL.y, SL.th, SL.th); ctx.fillStyle = "#fff"; } }
+    // squares wave
+    for (const s of squares) { const w = Math.sin(2 * Math.PI * (T / 3 - s.x / 2400 + s.y / 3000));
+      ctx.globalAlpha = 0.12 + 0.88 * Math.pow(Math.max(0, w), 3); ctx.fillRect(s.x, s.y, 90, 90); }
+    ctx.globalAlpha = 1;
+    // chevrons
+    ctx.lineWidth = 26; ctx.lineJoin = "miter";
+    for (const c of chevrons) { const w = Math.sin(2 * Math.PI * (T / 1.5 - c.i / 3)); ctx.globalAlpha = 0.2 + 0.8 * Math.max(0, w);
+      ctx.beginPath(); ctx.moveTo(c.x - 60, 170); ctx.lineTo(c.x + 60, 290); ctx.lineTo(c.x - 60, 410); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    // logos
+    if (logo && logo.complete && logo.naturalWidth) { ctx.drawImage(logo, 300, 150, 1000, 252); ctx.drawImage(logo, 19330, 170, 700, 176); }
+    // sub line under ليلة الكلاسيكو
+    ctx.save(); ctx.font = `400 58px ${SF}`; ctx.textAlign = "center"; ctx.direction = "ltr"; try { ctx.letterSpacing = "16px"; } catch (e) {}
+    ctx.fillText(copy.sub || "", 6800, 430); ctx.restore();
+    // top band
+    tops.forEach(t => {
+      const sp = SPACE * t.size / FS, kM = t.size * 0.6;
+      const exts = Array.from({ length: t.nk }, (_, k) => kM * kpulse(((T - t.cx / 5000 - k * 0.3) % 7 + 7) % 7 - 1.2));
+      const P = place(t.toks, exts, sp), off = t.cx + P.total / 2;
+      drawToks(ctx, t.toks, P.pos, off, t.y, t.size);
+    });
+    // walkers
+    const n = Math.floor(T / EMIT);
+    for (let j = 0; j < 6; j++) {
+      const id = n - j, e = id * EMIT, H = (T - e) * V, si = ((id % 3) + 3) % 3;
+      if (H < -400 || H - 4200 > W) continue;
+      let i = 0; while (H >= STOPS[i + 1]) i++; i = Math.min(i, 6);
+      const line = copy.scripts[si][i] || "", mood = MOODS[si][i], D = lineData(line);
+      const tau = (H - STOPS[i]) / V, tEnd = i >= 6 ? 1e9 : (STOPS[i + 1] - STOPS[i]) / V, left = tEnd - tau;
+      let open = tau < 0.45 ? 0 : back((tau - 0.45) / 0.45), closing = 1;
+      if (left < 0.35) { closing = ease(left / 0.35); open = Math.min(open, closing); }
+      const kMax = FS * 0.95;
+      const exts = Array.from({ length: D.nk }, (_, k) => { const q = tau - 1.05 - k * 0.22; return q < 0 ? 0 : kMax * kpulse(q) * clamp((left - 0.4) / 0.4); });
+      const P = place(D.toks, exts, SPACE), boxW = P.total + PAD * 2;
+      const bw = TYPE_W + (boxW - TYPE_W) * open;
+      const antic = tau > 0.3 && tau < 0.45 ? Math.sin(Math.PI * (tau - 0.3) / 0.15) : 0;
+      const ph = Math.PI * T * 1.8 + j, step = Math.abs(Math.sin(ph)), contact = 1 - step;
+      let dx = 0, gy = -step * 12, rot = 0;
+      let sx = 1 + 0.03 * contact * contact - 0.08 * antic, sy = 1 - 0.03 * contact * contact + 0.08 * antic;
+      const hold = open > 0.98 && left > 0.35; let standing = false;
+      if (mood === "buzz" && hold) { const q = tau % 1.4; if (q < 0.45) { dx += Math.sin(T * 95) * 16; rot = Math.sin(T * 70) * 1.2; } }
+      if (mood === "peek") { const k = back(tau / 0.9); gy += (1 - k) * 330; rot += (1 - ease(tau / 0.9)) * -7; }
+      if (mood === "invert" && hold) { const p = 0.03 * Math.sin(T * 2 * Math.PI * 1.2); sx += p; sy += p; }
+      if (mood === "wait") { const rush = 900;
+        if (tau < 0.55) { dx += rush * inout(tau / 0.55); sx += 0.12 * Math.sin(Math.PI * tau / 0.55); sy -= 0.06 * Math.sin(Math.PI * tau / 0.55); }
+        else { const d = rush - V * (tau - 0.55); dx += Math.max(0, d); standing = d > 0; if (standing) gy = -Math.abs(Math.sin(Math.PI * T * 5)) * 22; } }
+      const cx = -bw / 2, by = BOX_T + BOX_H, cy = BOX_T + BOX_H / 2;
+      ctx.save(); ctx.translate(H + dx, 0);
+      // speed lines
+      ctx.lineWidth = 8;
+      for (let k = 0; k < 3; k++) { const len = [520, 380, 640][k], x0 = -bw - 90 - k * 30, q = ((T * 1.3 + k * 0.31) % 1);
+        const en = inout(q * 1.5), st = inout(q * 1.5 - 0.5); ctx.globalAlpha = standing ? 0 : 0.7 * clamp(open);
+        if (ctx.globalAlpha > 0) { ctx.beginPath(); ctx.moveTo(x0 - len * clamp(st), 690 + k * 70); ctx.lineTo(x0 - len * en, 690 + k * 70); ctx.stroke(); } }
+      ctx.globalAlpha = 1;
+      // message group
+      ctx.save();
+      ctx.translate(0, gy); ctx.translate(cx, cy); ctx.rotate(rot * Math.PI / 180); ctx.translate(-cx, -cy);
+      ctx.translate(cx, by); ctx.scale(sx, sy); ctx.translate(-cx, -by);
+      ctx.save(); ctx.globalAlpha = .85; ctx.font = `${RW} 50px ${SF}`; ctx.textAlign = "center"; ctx.direction = "rtl"; ctx.fillText("stc bank · الآن", -SENDER_W / 2 - 8, BOX_T - 32); ctx.restore();
+      ctx.fillRect(-bw, BOX_T, bw, BOX_H);
+      // knock-outs inside the box
+      ctx.save(); ctx.beginPath(); ctx.rect(-bw, BOX_T, bw, BOX_H); ctx.clip(); ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "#000";
+      if (1 - clamp(open * 4) > 0.5) for (let k = 0; k < 3; k++) { const b = Math.max(0, Math.sin(2 * Math.PI * 2.4 * T - k * 0.9)) * 34; ctx.fillRect(-100 - k * 72, cy - 19 - b, 38, 38); }
+      if (open > 0.85) drawToks(ctx, D.toks, P.pos, -PAD, BASE, FS, (k, p) => {
+        const pk = ease((tau - 0.62 - k * 0.07) / 0.3) * closing; let dy = (1 - pk) * 40, r = 0;
+        if (mood === "calm" || mood === "slide" || mood === "wait") dy += Math.sin(2 * Math.PI * 0.9 * T - k * 0.7) * 6;
+        if (mood === "dance" && hold) { const s = Math.sin(2 * Math.PI * 2 * T + k * Math.PI); dy += s * 14; r = s * 4; }
+        return { dy, rot: r, rx: -PAD + (p.r + p.l) / 2, ry: BASE - 50 };
+      }, k => ease((tau - 0.62 - k * 0.07) / 0.3) * closing);
+      ctx.restore();
+      if (mood === "slide" && hold) { const f = ease((tau - 1.2) / 2.2), bwid = boxW * f;
+        ctx.fillRect(-boxW, BOX_T + BOX_H + 90, bwid, 16); ctx.fillRect(-boxW + bwid - 24, BOX_T + BOX_H + 74, 48, 48); }
+      ctx.restore();
+      // free pieces
+      const ground = by + 70, hopT = (T + j * 0.13) / 0.55, hopF = hopT % 1, hopN = Math.floor(hopT);
+      const lift = Math.sin(Math.PI * hopF) * (standing ? 30 : 90), land = hopF < 0.12 ? 1 - hopF / 0.12 : 0, ang = 90 * (hopN + inout(hopF));
+      const lx = 120, ly = ground - 35 - lift;
+      ctx.save(); ctx.translate(lx, ly); ctx.rotate((standing ? 0 : ang) * Math.PI / 180); ctx.translate(-lx, -ly);
+      ctx.translate(lx, ly + 35); ctx.scale(1 + 0.15 * land, 1 - 0.15 * land); ctx.translate(-lx, -(ly + 35));
+      ctx.fillRect(lx - 35, ly - 35, 70, 70); ctx.restore();
+      const fF = ((T + j * 0.13) / 0.55 + 0.5) % 1, fx = -bw - 150, fy = ground - 21 - Math.sin(Math.PI * fF) * 45;
+      ctx.fillRect(fx - 21, fy - 21, 42, 42);
+      ctx.restore();
+    }
+    // no LED in the door opening
+    ctx.clearRect(8160, 360, 640, 1080);
+  }
+
+  // public: draw the strip (transparent layer) into ctx at w×h
+  function draw(ctx, w, h, T) {
+    if (!layer || layer.width !== w || layer.height !== h) { layer = document.createElement("canvas"); layer.width = w; layer.height = h; lctx = layer.getContext("2d"); }
+    lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, w, h);
+    lctx.setTransform(w / W, 0, 0, h / HH, 0, 0);
+    render(lctx, T);
+    ctx.drawImage(layer, 0, 0, w, h);
+  }
+  function setCopy(c) { if (!valid(c)) return; copy = clone(c); lineCache = {}; tops = null; }
+  function onChange(fn) {
+    addEventListener("storage", e => { if (e.key === KEY) { const c = load(); setCopy(c); fn && fn(); } });
+    try { const bc = new BroadcastChannel("elclasico-c"); bc.onmessage = e => { setCopy(e.data); fn && fn(); }; } catch (e) {}
+  }
+  const ready = (document.fonts ? Promise.all([document.fonts.load(`${BW} ${FS}px "STC Forward"`, "حساب مكسب"), document.fonts.load(`${RW} ${FS}px "STC Forward"`, "حساب مكسب")]).catch(() => {}) : Promise.resolve()).then(measureBase);
+  measureBase();
+  return { draw, setCopy, onChange, setLogo, ready, DEFAULT, KEY, LOOP };
+})();
+</script>
 <script>
 (() => {
 const $ = id => document.getElementById(id);
@@ -220,9 +475,9 @@ const SCREENS = [
 
 const MODES = [['welcome','Welcome'],['clip','Team video'],['omar','Omar · draft 7'],['grid','Test grid'],['brand','Brand'],['match','Live match'],['countdown','Countdown'],['halftime','Half-time'],['goal','Goal'],['off','Off']];
 const PRESETS = {
-  'Arrival':  s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'omar' : 'brand'),
-  'Kick-off': s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'omar' : s.id==='A' ? 'match' : ['D','OB'].includes(s.id) ? 'match' : 'brand'),
-  'Half-time':s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'omar' : ['MP','PB','PB1'].includes(s.id) ? 'brand' : 'halftime'),
+  'Arrival':  s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'strip' : 'brand'),
+  'Kick-off': s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'strip' : s.id==='A' ? 'match' : ['D','OB'].includes(s.id) ? 'match' : 'brand'),
+  'Half-time':s => (['OA','OB'].includes(s.id) ? 'welcome' : CLIPS[s.id] ? 'clip' : s.id==='C' ? 'strip' : ['MP','PB','PB1'].includes(s.id) ? 'brand' : 'halftime'),
   'Goal':     () => 'goal',
   'Test grid':() => 'grid',
   'Blackout': () => 'off',
@@ -454,7 +709,6 @@ function pitchFeed(ctx,w,h,t){
 const CLIPS = {
   DR:  { file:'clips/DR',  src:'Display_above_door_640x360.mov', w:640,   h:360,  dur:20 },
   A:   { file:'clips/A',   src:'DIsplay_A_14720x4680.mp4',        w:14720, h:4680, dur:20 },
-  C:   { file:'clips/C',   src:'Draft 8 (approved copy, green Bank) over BG.mp4', w:20160, h:1440, dur:21 },
   D:   { file:'clips/D',   src:'Display_D_25920x1620.mp4',        w:16384, h:1024, dur:21, note:'File is 16384×1024 (same 16:1 ratio as 25920×1620, scaled down). Final export must be 25920×1620.' },
   MP:  { file:'clips/MP',  src:'Main_Arena_Pillars.mp4',          w:1600,  h:2520, dur:20 },
   PB:  { file:'clips/PB',  src:'Pillars_B_1920x1260.mp4',         w:1920,  h:1260, dur:20 },
@@ -474,6 +728,7 @@ Object.entries(CLIPS).forEach(([id,c]) => { (async () => {
 const OMAR = { v:null, ready:false, LOOP:21 };
 const LOGO = new Image(); LOGO.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTA3IDQ4MCIgd2lkdGg9IjE5MDciIGhlaWdodD0iNDgwIiB4bWxuczpjMnBhPSJodHRwOi8vYzJwYS5vcmcvbWFuaWZlc3QiPjxwYXRoIGZpbGw9IiNGRkZGRkYiIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTE1Mi43NSw0NzQuNDdDMTQxLjgyLDQ3My4zOCAxMzguNjYsNDcyLjk1IDEzMC41MCw0NzEuNDNDMTIwLjAxLDQ2OS40OCAxMDcuMjAsNDY1LjgwIDk5LjAwLDQ2Mi4zOUM5OC4zMSw0NjIuMTAgOTcuMzAsNDYxLjY5IDk2Ljc1LDQ2MS40OEM4Ny40MSw0NTcuOTIgNzQuMTAsNDUwLjQ3IDY1LjMxLDQ0My44OUM0Ny40Nyw0MzAuNTUgMzIuODUsNDEyLjYxIDI1Ljg0LDM5NS40OEMyNS4zMywzOTQuMjYgMjQuNzMsMzkyLjgwIDI0LjQ5LDM5Mi4yNUMyMi4zMSwzODcuMTQgMTkuMDAsMzczLjEwIDE5LjAwLDM2OC45MUMxOS4wMCwzNjcuMjQgMTkuMTIsMzY3LjExIDIwLjg4LDM2Ni44M0MyMS45MSwzNjYuNjYgMjMuNjUsMzY2LjMxIDI0Ljc1LDM2Ni4wNkMyNS44NSwzNjUuODEgMjcuOTksMzY1LjMzIDI5LjUwLDM2NS4wMEMzMS4wMSwzNjQuNjcgMzMuMDQsMzY0LjIyIDM0LjAwLDM2NC4wMEMzNC45NiwzNjMuNzggMzYuOTksMzYzLjMzIDM4LjUwLDM2My4wMEM0MC4wMSwzNjIuNjcgNDIuMDQsMzYyLjIyIDQzLjAwLDM2Mi4wMEM0NS41OSwzNjEuNDIgNTQuNDUsMzU5LjUwIDU2Ljc1LDM1OS4wMkM1OC45MCwzNTguNTggNjMuMTgsMzU3LjY0IDY2LjAwLDM1Ny4wMEM2Ni45NiwzNTYuNzggNjguOTksMzU2LjMzIDcwLjUwLDM1Ni4wMEM3Mi4wMSwzNTUuNjcgNzQuMDQsMzU1LjIyIDc1LjAwLDM1NS4wMEM3Ny44MiwzNTQuMzYgODIuMTAsMzUzLjQyIDg0LjI1LDM1Mi45OEM4NS4zNSwzNTIuNzUgODguNTAsMzUyLjA3IDkxLjI1LDM1MS40NUM5NC4wMCwzNTAuODQgOTcuMDQsMzUwLjMyIDk4LjAwLDM1MC4zMEw5OS43NSwzNTAuMjVMMTAwLjA2LDM1My41MEMxMDAuMjMsMzU1LjI5IDEwMC42NCwzNTcuNzYgMTAwLjk3LDM1OS4wMEMxMDEuMzAsMzYwLjI0IDEwMS42OSwzNjEuODEgMTAxLjg0LDM2Mi41MEMxMDIuMzUsMzY0Ljc3IDEwNS44OSwzNzEuOTMgMTA4LjI2LDM3NS40N0MxMTEuMTgsMzc5LjgyIDExOC41NywzODcuMDEgMTIzLjUwLDM5MC4zMUMxMzAuMDgsMzk0LjcwIDEzOC4zNSwzOTguMjUgMTQ2LjUwLDQwMC4xNkMxNTEuNjksNDAxLjM4IDE1Mi4zNSw0MDEuNDggMTYwLjUwLDQwMi4yMUMxNjcuMTYsNDAyLjgxIDE2OS4zNyw0MDIuODEgMTc2LjI1LDQwMi4yMEMxODAuNjUsNDAxLjgxIDE4NS4xNSw0MDEuMjkgMTg2LjI1LDQwMS4wNUMxODcuMzUsNDAwLjgwIDE4OS4wNCw0MDAuNDQgMTkwLjAwLDQwMC4yNUMyMDAuMDksMzk4LjIyIDIxMC4zMCwzOTEuOTggMjE0Ljk3LDM4NS4wMEMyMTguNzIsMzc5LjM5IDIyMC4wMCwzNzUuMTQgMjIwLjAwLDM2OC4yNUMyMjAuMDAsMzU3LjgzIDIxNi4wMCwzNTAuMzYgMjA3LjI4LDM0NC41NUMyMDMuOTgsMzQyLjM0IDIwMi4zNywzNDEuNDkgMTk4LjAwLDMzOS42NEMxOTcuMDQsMzM5LjIzIDE5NS44MCwzMzguNzEgMTk1LjI1LDMzOC40N0MxOTMuMjIsMzM3LjYwIDE4OC4wNywzMzYuMTAgMTgxLjc1LDMzNC41NEMxNzUuNTUsMzMzLjAyIDE3Mi41MSwzMzIuMjkgMTYyLjYyLDMyOS45OEMxNjAuMjIsMzI5LjQxIDE1Ny40NiwzMjguNzUgMTU2LjUwLDMyOC41MUMxNTUuNTQsMzI4LjI2IDE1My42MiwzMjcuODEgMTUyLjI1LDMyNy41MEMxNTAuODgsMzI3LjE5IDE0OC45NiwzMjYuNzQgMTQ4LjAwLDMyNi41MEMxNDcuMDQsMzI2LjI2IDE0NS4xMiwzMjUuODEgMTQzLjc1LDMyNS41MEMxNDIuMzgsMzI1LjE5IDE0MC40NiwzMjQuNzQgMTM5LjUwLDMyNC40OUMxMzguNTQsMzI0LjI1IDEzNS43MiwzMjMuNTggMTMzLjI1LDMyMy4wMEMxMzAuNzgsMzIyLjQyIDEyNy44NSwzMjEuNzIgMTI2Ljc1LDMyMS40NEMxMjUuNjUsMzIxLjE1IDEyMy45NiwzMjAuNzIgMTIzLjAwLDMyMC40N0MxMTQuNzksMzE4LjM2IDEwMi45NSwzMTQuNTEgOTcuNzUsMzEyLjI0Qzk2LjkyLDMxMS44OCA5NS4yNCwzMTEuMTkgOTQuMDAsMzEwLjcxQzkyLjc2LDMxMC4yMyA4OC4zOCwzMDguMTIgODQuMjUsMzA2LjAyQzU2LjA4LDI5MS42NiAzOC4zMCwyNzEuNjEgMzEuNTcsMjQ2LjYyQzMwLjEyLDI0MS4yMyAzMC4xMSwyNDEuMTggMjguNTIsMjMwLjE1QzI3LjI2LDIyMS40MSAyOC4yMiwyMDUuNDAgMzAuNTksMTk1Ljc1QzM0Ljg4LDE3OC4yNiA0MS41OCwxNjQuOTcgNTIuODksMTUxLjQ4QzYyLjMyLDE0MC4yMyA3Ni44OCwxMjkuMjEgOTEuNzUsMTIyLjA1QzEwOS44MSwxMTMuMzYgMTI3LjI1LDEwOC42OSAxNDkuNzcsMTA2LjUzQzE1Ni43NywxMDUuODYgMTc0LjI4LDEwNS44NCAxODAuMjIsMTA2LjUwQzE4Mi43MSwxMDYuNzggMTg2Ljg5LDEwNy4yNSAxODkuNTAsMTA3LjU0QzE5Mi4xMSwxMDcuODMgMTk1LjI2LDEwOC4yNiAxOTYuNTAsMTA4LjQ5QzE5Ny43NCwxMDguNzMgMjAwLjIxLDEwOS4yMCAyMDIuMDAsMTA5LjUzQzIwNC43NiwxMTAuMDUgMjA5LjY5LDExMS4yNCAyMTYuMjUsMTEyLjk4QzIxOC43MiwxMTMuNjMgMjI4LjY0LDExNy4wMCAyMzAuMjUsMTE3Ljc0QzIzMS4wNywxMTguMTEgMjMyLjc2LDExOC44MSAyMzQuMDAsMTE5LjI5QzIzOS4wMywxMjEuMjMgMjUxLjY5LDEyOC4wOSAyNTcuNzgsMTMyLjE1QzI3NC44MSwxNDMuNTQgMjg4LjQyLDE1OC4zMSAyOTYuMjIsMTczLjg3QzI5OC4xNiwxNzcuNzQgMjk4Ljg1LDE3OS4yNCAzMDAuNTIsMTgzLjI1QzMwMi4xNSwxODcuMTcgMzA0LjAxLDE5NC4zNCAzMDUuNDgsMjAyLjQyQzMwNi4xNCwyMDYuMDYgMzA1Ljg0LDIwNi43NSAzMDMuMzYsMjA3LjE2QzMwMi40NywyMDcuMzEgMzAwLjg1LDIwNy42NSAyOTkuNzUsMjA3LjkxQzI5OC42NSwyMDguMTggMjk2LjUxLDIwOC42NyAyOTUuMDAsMjA5LjAwQzI5My40OSwyMDkuMzMgMjkxLjQ2LDIwOS43OCAyOTAuNTAsMjEwLjAwQzI4OS41NCwyMTAuMjIgMjg3LjUxLDIxMC42NyAyODYuMDAsMjExLjAwQzI4NC40OSwyMTEuMzMgMjgyLjQ2LDIxMS43OCAyODEuNTAsMjEyLjAwQzI4MC41NCwyMTIuMjIgMjc4LjUxLDIxMi42NyAyNzcuMDAsMjEzLjAwQzI3NS40OSwyMTMuMzMgMjczLjQxLDIxMy44MCAyNzIuMzgsMjE0LjA1QzI3MS4zNCwyMTQuMzAgMjY5LjY2LDIxNC43MCAyNjguNjIsMjE0Ljk1QzI2Ny41OSwyMTUuMjAgMjY1LjUxLDIxNS42NyAyNjQuMDAsMjE2LjAwQzI2Mi40OSwyMTYuMzMgMjYwLjQ2LDIxNi43OCAyNTkuNTAsMjE3LjAwQzI1OC41NCwyMTcuMjIgMjU2LjUxLDIxNy42NyAyNTUuMDAsMjE4LjAwQzI1My40OSwyMTguMzMgMjUxLjQ2LDIxOC43OCAyNTAuNTAsMjE5LjAwQzI0OS41NCwyMTkuMjIgMjQ3LjUxLDIxOS42NyAyNDYuMDAsMjIwLjAwQzI0Mi43NywyMjAuNzEgMjQxLjM2LDIyMS4wMyAyMzUuMDAsMjIyLjUwQzIzMi4zOSwyMjMuMTEgMjI5LjU3LDIyMy43MSAyMjguNzQsMjIzLjg0TDIyNy4yMywyMjQuMDhMMjI2LjU4LDIyMC41N0MyMjQuODQsMjExLjE2IDIxOS41OSwyMDEuMTUgMjEyLjkyLDE5NC41NEMyMDUuOTAsMTg3LjU4IDE5NC41NSwxODEuNzQgMTgzLjc1LDE3OS41M0MxODIuMTAsMTc5LjE5IDE3OS42MywxNzguNjcgMTc4LjI1LDE3OC4zOEMxNzQuMzAsMTc3LjUzIDE1Ni41MywxNzcuNzUgMTUxLjUwLDE3OC43MEMxNDEuODIsMTgwLjU0IDEzOS4wNCwxODEuNDMgMTMyLjI1LDE4NC44NkMxMjQuMzMsMTg4Ljg2IDExOC4zMSwxOTUuODEgMTE1LjQ1LDIwNC4yNUMxMTUuMDQsMjA1LjQ3IDExNC43NywyMDguNDggMTE0Ljc3LDIxMi4wMEMxMTQuNzcsMjE2Ljg5IDExNC45NSwyMTguMjAgMTE1Ljk3LDIyMC43NUMxMjAuMTMsMjMxLjIyIDEzMC41NCwyMzguNTkgMTQ2LjI1LDI0Mi4yMUMxNTAuMzMsMjQzLjE1IDE1My45MywyNDMuODcgMTYzLjAwLDI0NS41OEMxNjQuNTEsMjQ1Ljg2IDE2Ni43NiwyNDYuMzAgMTY4LjAwLDI0Ni41NkMxNjkuMjQsMjQ2LjgxIDE3NC44NiwyNDcuOTEgMTgwLjUwLDI0OS4wMEMxODYuMTQsMjUwLjA5IDE5MS43NiwyNTEuMTkgMTkzLjAwLDI1MS40NEMxOTUuMjIsMjUxLjkwIDE5OC4yOCwyNTIuNDkgMjAzLjg4LDI1My41NEMyMDguNTMsMjU0LjQyIDIxMS40MSwyNTUuMDcgMjE3LjEyLDI1Ni41NUMyMjEuMjEsMjU3LjYxIDIzNC43NywyNjIuMDUgMjM2Ljg3LDI2My4wMkMyMzguMDQsMjYzLjU2IDIzOS4xNywyNjQuMDAgMjM5LjQwLDI2NC4wMEMyMzkuNjMsMjY0LjAwIDI0MC43MCwyNjQuNDIgMjQxLjc4LDI2NC45NEMyNDkuNDUsMjY4LjYxIDI1MS42MCwyNjkuNjkgMjU0LjI1LDI3MS4xOEMyNzcuMzIsMjg0LjE0IDI5My4xOCwzMDAuODYgMzAyLjI0LDMyMS43NUMzMDMuNzMsMzI1LjIxIDMwMy45MSwzMjUuNjcgMzA0Ljk4LDMyOS4wMEMzMDcuMjUsMzM2LjA3IDMwOC4yOCwzNDAuNjIgMzA5LjQ4LDM0OC44NUMzMTAuMTUsMzUzLjQ5IDMxMC4xNSwzNjkuMTcgMzA5LjQ4LDM3My40NEMzMDkuMTksMzc1LjI2IDMwOC43MywzNzguMjEgMzA4LjQ1LDM4MC4wMEMzMDcuNDIsMzg2LjY4IDMwNS41NywzOTMuMzEgMzAyLjUyLDQwMS4yNUMzMDIuMzEsNDAxLjgwIDMwMC44Niw0MDQuODYgMjk5LjMwLDQwOC4wNUMyODkuOTEsNDI3LjI2IDI3NS4yNSw0NDIuMjQgMjUzLjc1LDQ1NC42MEMyNTIuMDcsNDU1LjU3IDI0MS4zMCw0NjAuODUgMjM5Ljc1LDQ2MS40N0MyMzkuMjAsNDYxLjY5IDIzOC4wNyw0NjIuMTUgMjM3LjI1LDQ2Mi41MEMyMzYuNDMsNDYyLjg1IDIzNS4zMCw0NjMuMzIgMjM0Ljc1LDQ2My41NUMyMzIuNDksNDY0LjQ4IDIyMi45Myw0NjcuNDkgMjE4LjUwLDQ2OC42N0MyMDguOTksNDcxLjE4IDE5OC43OCw0NzIuOTggMTg4LjAwLDQ3NC4wNEMxODEuMTUsNDc0LjcxIDE1OC4wMyw0NzQuOTkgMTUyLjc1LDQ3NC40N1pNNzk5LjI1LDQ3NC40M0M3OTIuMjgsNDczLjc5IDc4Mi45Nyw0NzIuNDQgNzc2LjUwLDQ3MS4xNEM3NjkuNTksNDY5Ljc1IDc2OC44NCw0NjkuNTcgNzYyLjM0LDQ2Ny43OUM3NTcuOTMsNDY2LjU4IDc0Ny41NCw0NjMuMDYgNzQzLjc1LDQ2MS40OUM3NDMuMjAsNDYxLjI2IDc0MS43NCw0NjAuNjcgNzQwLjUwLDQ2MC4xNkM3MzcuNjksNDU5LjAyIDcyMy40NCw0NTEuOTIgNzIwLjc1LDQ1MC4zMkM2OTguMjYsNDM2Ljk2IDY4MS4wOSw0MjEuMTYgNjY1LjUwLDM5OS41MEM2NTUuMzksMzg1LjQ1IDY0NC4zMCwzNjIuNTEgNjM5Ljk1LDM0Ni42MkM2MzkuNzAsMzQ1LjczIDYzOS4yOSwzNDQuMjcgNjM5LjA0LDM0My4zOEM2MzguMDIsMzM5LjcyIDYzNy4xMiwzMzYuMDggNjM2LjUzLDMzMy4yNUM2MzYuMjAsMzMxLjYwIDYzNS43MywzMjkuMzUgNjM1LjQ5LDMyOC4yNUM2MzQuNDcsMzIzLjQ0IDYzMy42OCwzMTcuNzYgNjMyLjUyLDMwNi45MEM2MzEuODUsMzAwLjYxIDYzMS44NSwyODAuNzMgNjMyLjUyLDI3NC4wMEM2MzMuNjYsMjYyLjU5IDYzNC4xOCwyNTguOTUgNjM2LjAwLDI0OS41MEM2MzYuOTYsMjQ0LjUyIDYzNy4yMSwyNDMuNDcgNjM4LjU3LDIzOC4zOEM2NDAuNDQsMjMxLjM2IDY0My45MCwyMjEuMDEgNjQ2LjM4LDIxNS4wMEM2NTUuMTgsMTkzLjY5IDY2OC42MSwxNzMuNDIgNjg0LjQ5LDE1Ny40NkM2OTUuNzAsMTQ2LjIxIDcwNi4wNSwxMzguMzAgNzIxLjI1LDEyOS4zOEM3MjIuODksMTI4LjQyIDczNy41NSwxMjEuMjAgNzM5LjM4LDEyMC40NkM3MzkuOTksMTIwLjIxIDc0MS4wNiwxMTkuNzggNzQxLjc1LDExOS41MEM3NDIuNDQsMTE5LjIyIDc0My41MSwxMTguODAgNzQ0LjEyLDExOC41NUM3NDguMTAsMTE2Ljk0IDc1NC40MiwxMTQuODEgNzU5LjAwLDExMy41MkM3NjAuMjQsMTEzLjE3IDc2MS44MSwxMTIuNzEgNzYyLjUwLDExMi40OUM3NjMuMTksMTEyLjI3IDc2NC44OCwxMTEuODMgNzY2LjI1LDExMS41MkM3NjcuNjIsMTExLjIwIDc2OS41NCwxMTAuNzQgNzcwLjUwLDExMC41MUM3NzYuMzQsMTA5LjA3IDc4Ni4xMiwxMDcuNTkgNzk3LjAwLDEwNi41MkM4MTIuOTgsMTA0LjkzIDg0MC42OSwxMDYuODIgODU1LjUwLDExMC41MUM4NjUuMzAsMTEyLjk1IDg2OC40MCwxMTMuODAgODcyLjk2LDExNS4yOUM4NzUuODcsMTE2LjI0IDg3OC42NCwxMTcuMjQgODc5LjEyLDExNy41MUM4NzkuNjAsMTE3Ljc4IDg4MC4yMiwxMTguMDAgODgwLjUwLDExOC4wMEM4ODAuNzgsMTE4LjAwIDg4Mi4wOCwxMTguNDcgODgzLjM4LDExOS4wNUM4ODQuNjgsMTE5LjYzIDg4Ni4yMCwxMjAuMjkgODg2Ljc1LDEyMC41MUM4ODguODQsMTIxLjM4IDkwMS4zNCwxMjcuNTcgOTAzLjI1LDEyOC43MEM5MjcuNTYsMTQyLjk0IDk0NC4wMiwxNTkuMDMgOTU4LjIxLDE4Mi4zN0M5NjAuODgsMTg2Ljc2IDk2NS4zOCwxOTUuNDIgOTY3LjI1LDE5OS43NUM5NjcuNzMsMjAwLjg1IDk2OC40NSwyMDIuNTAgOTY4Ljg1LDIwMy40MUM5NjkuODcsMjA1LjczIDk3Mi41MiwyMTIuOTQgOTczLjAxLDIxNC43NUM5NzMuMjMsMjE1LjU3IDk3My44NiwyMTcuNzQgOTc0LjQwLDIxOS41NkM5NzQuOTUsMjIxLjM4IDk3NS4yNSwyMjMuMDcgOTc1LjA3LDIyMy4zM0M5NzQuODksMjIzLjU4IDk2Ni4yMCwyMjYuNjUgOTU1Ljc1LDIzMC4xNEM5NDUuMzAsMjMzLjYzIDkyNi43NCwyMzkuODYgOTE0LjUwLDI0My45OEM5MDIuMjYsMjQ4LjA5IDg5MS45OSwyNTEuNDcgODkxLjY4LDI1MS40OEM4OTEuMzcsMjUxLjQ5IDg5MS4wMCwyNTEuMTEgODkwLjg2LDI1MC42MkM4ODkuODQsMjQ3LjE3IDg4Ny4wNCwyNDAuMzUgODg0LjY3LDIzNS41MEM4NzYuNzQsMjE5LjI5IDg2NS43NCwyMDcuOTQgODUxLjI1LDIwMS4wMUM4NDguNzcsMTk5LjgzIDg0Ni4zMCwxOTguNjkgODQ1Ljc1LDE5OC40OEM4MzcuMDEsMTk1LjE2IDgyNC43MCwxOTMuMDAgODE0LjUwLDE5My4wMEM4MDUuMzcsMTkzLjAwIDc5NC44MywxOTQuNjcgNzg1LjAwLDE5Ny42N0M3ODQuMDQsMTk3Ljk2IDc4My4wNCwxOTguMzggNzgyLjc4LDE5OC42MEM3ODIuNTEsMTk4LjgyIDc4MS45OSwxOTkuMDAgNzgxLjYwLDE5OS4wMEM3ODAuODMsMTk5LjAwIDc3MS4wMywyMDMuNzEgNzY3LjUwLDIwNS43N0M3NjIuOTUsMjA4LjQ0IDc1NS45MiwyMTQuMTkgNzUxLjQ4LDIxOC44OEM3MjguNjcsMjQyLjk4IDcyMC4zNywyODIuODQgNzMwLjAwLDMyMi4wMEM3MzMuMjAsMzM1LjAwIDczOS43MCwzNDguMDYgNzQ4LjA0LDM1OC4yNUM3NTguNjMsMzcxLjE4IDc3NS40NCwzODEuNTYgNzkyLjUwLDM4NS42OUM4MDEuMzcsMzg3Ljg0IDgwNC4xOCwzODguMTUgODE1LjAwLDM4OC4xN0M4MjYuODAsMzg4LjIwIDgzMS4xOCwzODcuNjYgODQwLjc1LDM4NS4wM0M4NDkuMDIsMzgyLjc2IDg1Ny44OSwzNzguNDAgODY1LjAwLDM3My4xMkM4NzUuMTUsMzY1LjU4IDg4NC44NiwzNTMuODYgODg5LjY0LDM0My4zOEM4OTEuNzgsMzM4LjcxIDg5My44NSwzMzMuMzEgODk0LjEwLDMzMS44MEM4OTQuMTgsMzMxLjI4IDg5NC41OSwzMzAuNjcgODk1LjAwLDMzMC40M0M4OTUuNTAsMzMwLjE0IDkwOS4wOCwzMzQuNDcgOTM2LjUwLDM0My42NEw5NzcuMjUsMzU3LjI4TDk3Ny4wOSwzNTguNzdDOTc2Ljg5LDM2MC42MiA5NzQuMTUsMzY4Ljg4IDk3MS42NywzNzUuMDdDOTY3LjcyLDM4NC45NyA5NjAuNjYsMzk3Ljk3IDk1NC42OSw0MDYuMzJDOTQ1LjQ2LDQxOS4yNSA5MzIuNDQsNDMyLjc3IDkyMS4yNSw0NDEuMDNDOTE5LjYwLDQ0Mi4yNSA5MTguMTQsNDQzLjM4IDkxOC4wMCw0NDMuNTRDOTE3LjYwLDQ0NC4wMSA5MTAuMzAsNDQ4Ljg1IDkwNy40MCw0NTAuNTdDOTAxLjgwLDQ1My44OSA4OTQuOTQsNDU3LjQ3IDg5MC4yNSw0NTkuNTJDODg4Ljg4LDQ2MC4xMiA4ODYuNTYsNDYxLjE1IDg4NS4xMSw0NjEuODFDODgzLjY2LDQ2Mi40NiA4ODIuMjUsNDYzLjAwIDg4MS45OCw0NjMuMDBDODgxLjcxLDQ2My4wMCA4ODEuMTAsNDYzLjIyIDg4MC42Miw0NjMuNDlDODc4Ljc4LDQ2NC41MyA4NjUuMTAsNDY4LjczIDg1OS4yNSw0NzAuMDVDODUxLjg3LDQ3MS43MiA4NDIuNDEsNDczLjI1IDgzNC41MCw0NzQuMDVDODI3Ljc2LDQ3NC43NCA4MDUuMTksNDc0Ljk4IDc5OS4yNSw0NzQuNDNaTTQzMi4zOCwzMjguMTJMNDMyLjI1LDE5Mi4yNUwzODUuODcsMTkyLjEyTDMzOS40OSwxOTEuOTlMMzM5LjYyLDE1MC44N0wzMzkuNzUsMTA5Ljc1TDQ3OS4wMCwxMDkuNzVMNjE4LjI1LDEwOS43NUw2MTguMzgsMTUwLjg3TDYxOC41MSwxOTEuOTlMNTcxLjg4LDE5Mi4xMkw1MjUuMjUsMTkyLjI1TDUyNS4xMiwzMjguMTJMNTI1LjAwLDQ2NC4wMEw0NzguNzUsNDY0LjAwTDQzMi41MCw0NjQuMDBMNDMyLjM4LDMyOC4xMloiLz48cGF0aCBmaWxsPSIjNjBCQzk0IiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xMzMyLjI1LDI3NC4yNEMxMzI4LjAwLDI3My41NyAxMzIyLjIzLDI3Mi4yNyAxMzE5Ljc1LDI3MS40MkMxMzAwLjIzLDI2NC42OSAxMjg3LjQzLDI1MS41NCAxMjgyLjYxLDIzMy4yNUMxMjgxLjMwLDIyOC4yOSAxMjgxLjAwLDIyNS4zOSAxMjgxLjAwLDIxNy43NUMxMjgxLjAwLDIwOC40OCAxMjgxLjUwLDIwNS4yMiAxMjg0LjEyLDE5Ny4yNUMxMjg2LjQ0LDE5MC4yMiAxMjkxLjEzLDE4Mi45MCAxMjk2Ljc0LDE3Ny41N0MxMzAxLjIxLDE3My4zMyAxMzA0Ljk2LDE3MC43NiAxMzEwLjUwLDE2OC4xNUMxMzE2LjIwLDE2NS40NiAxMzE1LjU1LDE2NS42OSAxMzIyLjUwLDE2My44N0MxMzI1LjQyLDE2My4xMCAxMzI5LjcxLDE2Mi4zOCAxMzM2LjI1LDE2MS41NUMxMzQzLjMzLDE2MC42NSAxMzQ4LjQxLDE2MC4wMSAxMzUyLjUwLDE1OS41MEMxMzU0LjcwLDE1OS4yMiAxMzU4LjMwLDE1OC43OCAxMzYwLjUwLDE1OC41MEMxMzYyLjcwLDE1OC4yMiAxMzY2LjMwLDE1Ny43OCAxMzY4LjUwLDE1Ny41MEMxMzc4Ljk1LDE1Ni4xOSAxMzgwLjk5LDE1NS45NCAxMzg0LjI1LDE1NS41MkMxMzg2LjE3LDE1NS4yNyAxMzkwLjAwLDE1NC44MCAxMzkyLjc1LDE1NC40N0MxMzk1LjUwLDE1NC4xNSAxMzk5LjMzLDE1My42MiAxNDAxLjI1LDE1My4yOUwxNDA0Ljc1LDE1Mi43MEwxNDA0LjkyLDE0OS4yMkMxNDA1LjExLDE0NS4yNCAxNDA0LjE5LDEzOC4wOCAxNDAzLjE3LDEzNS42NEMxNDAyLjE0LDEzMy4xOCAxMzk5LjI5LDEzMC4yNSAxMzk2LjYxLDEyOC45MkwxMzk0LjI1LDEyNy43NUwxMzQ1LjYyLDEyNy42MUwxMjk2Ljk5LDEyNy40N0wxMjk3LjEyLDEwNy44NkwxMjk3LjI1LDg4LjI1TDEzNDIuNzUsODguMDlDMTM4Ny4wOSw4Ny45NCAxMzk5LjI1LDg4LjIyIDE0MDYuNTAsODkuNTdDMTQzMC4zNyw5NC4wMCAxNDQzLjU0LDEwNi4yNyAxNDQ3LjQ5LDEyNy43NUMxNDQ3Ljg4LDEyOS44NyAxNDQ4LjAwLDE1MS4xNiAxNDQ3LjkwLDIwMC4yNUwxNDQ3Ljc1LDI2OS43NUwxNDI2LjUwLDI2OS43NUwxNDA1LjI1LDI2OS43NUwxNDA1LjEyLDI1OS4xMkMxNDA1LjA0LDI1My4yOCAxNDA0LjgwLDI0OC41MCAxNDA0LjU4LDI0OC41MEMxNDA0LjM3LDI0OC41MCAxNDAyLjk2LDI0OS45OCAxNDAxLjQ3LDI1MS43OUMxMzk2LjU1LDI1Ny43NiAxMzg4Ljk2LDI2My41MyAxMzgxLjEzLDI2Ny4yNkMxMzcyLjY3LDI3MS4yOSAxMzY4LjIxLDI3Mi41NSAxMzU1LjQ2LDI3NC41MEMxMzUxLjA1LDI3NS4xNyAxMzM3LjIyLDI3NS4wMiAxMzMyLjI1LDI3NC4yNFpNMTA2OC44MywyNjkuNjdDMTA2OC42NSwyNjkuNDggMTA2OC41MCwyMDkuODYgMTA2OC41MCwxMzcuMTdMMTA2OC41MCw1LjAwTDExMjUuNDIsNS4wMEMxMTg3LjI5LDUuMDAgMTE4NS43Myw0Ljk0IDExOTcuNzUsNy43OEMxMjA2Ljg0LDkuOTIgMTIxNy44MiwxNC44MiAxMjI0LjI1LDE5LjYyQzEyMzUuODYsMjguMjcgMTI0My42NCw0MC4yNSAxMjQ2LjkxLDU0LjUwQzEyNTAuNDUsNjkuOTEgMTI0OS4wMiw4NC41MyAxMjQyLjcxLDk3LjUwQzEyNDAuMTMsMTAyLjc5IDEyMzUuNTMsMTA4Ljk2IDEyMzEuMTEsMTEzLjA0QzEyMjcuNzUsMTE2LjE0IDEyMjAuNDEsMTIxLjI5IDEyMTcuNTMsMTIyLjU3QzEyMTYuNjksMTIyLjk0IDEyMTYuMDAsMTIzLjQxIDEyMTYuMDAsMTIzLjYxQzEyMTYuMDAsMTIzLjgxIDEyMTguMDgsMTI0Ljk5IDEyMjAuNjIsMTI2LjIyQzEyMjkuNDAsMTMwLjQ3IDEyMzUuMjIsMTM0LjY0IDEyNDAuODgsMTQwLjc0QzEyNTcuODAsMTU4Ljk5IDEyNjIuNjUsMTg4LjI5IDEyNTMuMzksMjE2LjI1QzEyNDYuNDQsMjM3LjIyIDEyMzAuODksMjUzLjE0IDEyMDguNjQsMjYyLjA2QzExOTguNTQsMjY2LjExIDExODguODMsMjY4LjE1IDExNzMuNTAsMjY5LjQ3QzExNjYuNjUsMjcwLjA2IDEwNjkuNDEsMjcwLjI0IDEwNjguODMsMjY5LjY3Wk0xNDk4LjIzLDI2OS4zOEMxNDk4LjEwLDI2OS4wMyAxNDk4LjA1LDIyOC4xNCAxNDk4LjEyLDE3OC41MEwxNDk4LjI1LDg4LjI1TDE1MjAuMDAsODguMjVMMTU0MS43NSw4OC4yNUwxNTQxLjg4LDk5LjEyQzE1NDEuOTYsMTA1LjExIDE1NDIuMjAsMTEwLjAwIDE1NDIuNDMsMTEwLjAwQzE1NDIuNjUsMTEwLjAwIDE1NDMuNTIsMTA5LjE1IDE1NDQuMzUsMTA4LjExQzE1NDYuMzUsMTA1LjYzIDE1NTMuMjgsOTkuODAgMTU1OC4wMCw5Ni42NUMxNTY0LjE2LDkyLjUzIDE1NzIuOTgsODguNTUgMTU4MC4yNSw4Ni42MEMxNTg5LjM3LDg0LjE2IDE1OTIuODgsODMuNzUgMTYwNC43NSw4My43OEMxNjE2LjQ0LDgzLjgwIDE2MTcuOTEsODMuOTcgMTYyNi43NSw4Ni4yNUMxNjM5LjM5LDg5LjUxIDE2NTEuNDAsOTcuNjggMTY1OS40NiwxMDguNTBDMTY2MS44MSwxMTEuNjcgMTY2Ni4xOSwxMTkuNjcgMTY2Ny41MywxMjMuMjVDMTY2OS45OSwxMjkuODcgMTY3MS40NSwxMzYuNDYgMTY3Mi40OSwxNDUuNzhDMTY3My4yNywxNTIuNzEgMTY3My4xOCwyNjguNjIgMTY3Mi40MCwyNjkuNDBDMTY3MS41NCwyNzAuMjYgMTYyOS40NiwyNzAuMjYgMTYyOC42MCwyNjkuNDBDMTYyOC4xNCwyNjguOTQgMTYyOC4wMCwyNTUuNjMgMTYyOC4wMCwyMTIuNTJDMTYyOC4wMCwxNTMuMjQgMTYyOC4wMywxNTMuOTggMTYyNS43NywxNDcuMjVDMTYyMi45MiwxMzguNzYgMTYxNi44MywxMzEuMTEgMTYxMC42MiwxMjguMjVDMTYwNS42NiwxMjUuOTYgMTYwNC44OSwxMjUuNzAgMTYwMC4zMiwxMjQuNzVDMTU5MC40NCwxMjIuNjggMTU3OC4wNiwxMjQuNjcgMTU2Ny4zNywxMzAuMDJDMTU1Ny40NywxMzQuOTkgMTU0OC4yNywxNDMuNTQgMTU0My41OCwxNTIuMTVMMTU0Mi4wMCwxNTUuMDVMMTU0MS44OCwyMTIuNDBMMTU0MS43NSwyNjkuNzVMMTUyMC4xMSwyNjkuODhDMTUwMy4wNywyNjkuOTggMTQ5OC40MiwyNjkuODggMTQ5OC4yMywyNjkuMzhaTTE3MTkuMzQsMjY5LjY3QzE3MTkuMTUsMjY5LjQ5IDE3MTkuMDAsMjA5Ljg2IDE3MTkuMDAsMTM3LjE3TDE3MTkuMDAsNS4wMEwxNzQxLjAwLDUuMDBMMTc2My4wMCw1LjAwTDE3NjMuMDAsODAuNDRDMTc2My4wMCwxNDMuOTggMTc2My4xMSwxNTUuOTcgMTc2My42OSwxNTYuNDVDMTc2NC4xNywxNTYuODUgMTc2Ny4yMSwxNTYuOTggMTc3My41NiwxNTYuODlMMTc4Mi43NSwxNTYuNzVMMTc4NS4zOSwxNTMuMjVDMTc4Ni44NCwxNTEuMzIgMTc5MS40MCwxNDUuMTQgMTc5NS41MSwxMzkuNTBDMTc5OS42MywxMzMuODYgMTgwNi4zMSwxMjQuNzEgMTgxMC4zNywxMTkuMTdDMTgxNC40MywxMTMuNjMgMTgyMS4wMCwxMDQuNjMgMTgyNC45OCw5OS4xN0MxODI4Ljk1LDkzLjcxIDE4MzIuNTUsODguOTggMTgzMi45OCw4OC42NEMxODMzLjU2LDg4LjE4IDE4MzkuODQsODguMDMgMTg1OC42MCw4OC4wMkMxODcyLjI2LDg4LjAxIDE4ODMuNTUsODguMTcgMTg4My42OCw4OC4zOEMxODgzLjgxLDg4LjU5IDE4ODEuODcsOTEuNDYgMTg3OS4zOCw5NC43NkMxODc2Ljg4LDk4LjA1IDE4NzEuNzcsMTA0LjgwIDE4NjguMDIsMTA5Ljc1QzE4NjQuMjYsMTE0LjcwIDE4NTcuOTYsMTIzLjAzIDE4NTQuMDAsMTI4LjI1QzE4NDUuMzEsMTM5LjczIDE4MzcuMDgsMTUwLjYwIDE4MjcuNTksMTYzLjEwQzE4MjMuNjksMTY4LjI0IDE4MjAuNTAsMTcyLjY2IDE4MjAuNTAsMTcyLjkyQzE4MjAuNTAsMTczLjE4IDE4MjEuOTIsMTc1LjM5IDE4MjMuNjUsMTc3LjgyQzE4MjUuMzgsMTgwLjI2IDE4MjguOTAsMTg1LjI5IDE4MzEuNDgsMTg5LjAwQzE4MzguOTYsMTk5Ljc3IDE4NDMuOTIsMjA2LjkwIDE4NDcuNTAsMjEyLjAwQzE4NTEuNzMsMjE4LjAzIDE4NTcuNTQsMjI2LjM4IDE4NjMuNTEsMjM1LjAwQzE4NjYuMDgsMjM4LjcxIDE4NjkuMjMsMjQzLjIxIDE4NzAuNTAsMjQ1LjAwQzE4NzEuNzgsMjQ2Ljc5IDE4NzUuMTYsMjUxLjYyIDE4NzguMDEsMjU1Ljc1QzE4ODAuODYsMjU5Ljg4IDE4ODQuMDUsMjY0LjQ3IDE4ODUuMTAsMjY1Ljk2QzE4ODYuMTQsMjY3LjQ0IDE4ODcuMDAsMjY4Ljk2IDE4ODcuMDAsMjY5LjMzQzE4ODcuMDAsMjY5Ljg4IDE4ODIuNDIsMjcwLjAwIDE4NjEuMzEsMjcwLjAwTDE4MzUuNjIsMjcwLjAwTDE4MjcuOTQsMjU4LjY5QzE4MjMuNzEsMjUyLjQ3IDE4MTYuNTQsMjQxLjkyIDE4MTIuMDAsMjM1LjI1QzE4MDcuNDYsMjI4LjU4IDE3OTkuMTQsMjE2LjM0IDE3OTMuNTEsMjA4LjA1TDE3ODMuMjcsMTkyLjk4TDE3NzMuMjYsMTkzLjEyTDE3NjMuMjUsMTkzLjI1TDE3NjMuMDAsMjMxLjUwTDE3NjIuNzUsMjY5Ljc1TDE3NDEuMjEsMjY5Ljg4QzE3MjkuMzcsMjY5Ljk1IDE3MTkuNTIsMjY5Ljg2IDE3MTkuMzQsMjY5LjY3Wk0xMzY0LjQwLDIzOS40N0MxMzY1LjY5LDIzOS4xOCAxMzY3Ljc2LDIzOC43MCAxMzY5LjAwLDIzOC40MUMxMzgzLjUzLDIzNS4wMiAxMzk2Ljk3LDIyNC45NiAxNDAzLjE3LDIxMi44NkwxNDA1LjAyLDIwOS4yNUwxNDA1LjAwLDE5OC43NUMxNDA0Ljk5LDE5Mi45NyAxNDA0LjgxLDE4Ny45NyAxNDA0LjU5LDE4Ny42M0MxNDA0LjI5LDE4Ny4xNiAxNDAzLjUzLDE4Ny4xMyAxNDAxLjQ3LDE4Ny40OUMxMzk5Ljk4LDE4Ny43NiAxMzk3LjE3LDE4OC4xOSAxMzk1LjI1LDE4OC40NkMxMzg1LjQ5LDE4OS44MyAxMzgwLjcwLDE5MC40OSAxMzczLjI1LDE5MS41MEMxMzcxLjA1LDE5MS43OSAxMzY3LjczLDE5Mi4yNSAxMzY1Ljg4LDE5Mi41MkMxMzY0LjAyLDE5Mi43OCAxMzYwLjkyLDE5My4yMiAxMzU5LjAwLDE5My41MEMxMzUwLjMxLDE5NC43NCAxMzQ4LjA3LDE5NS4wOSAxMzQ1LjUwLDE5NS42MUMxMzM2Ljg2LDE5Ny4zNSAxMzI5Ljk3LDIwMi4wNSAxMzI3LjM1LDIwNy45N0MxMzI0LjM1LDIxNC43NSAxMzI0LjMzLDIyMS40OSAxMzI3LjI5LDIyNy43OUMxMzI5LjU2LDIzMi42MSAxMzM2LjAxLDIzNy4wNiAxMzQzLjUwLDIzOC45NkMxMzQ3LjgzLDI0MC4wNiAxMzYwLjQ0LDI0MC4zNyAxMzY0LjQwLDIzOS40N1pNMTE2Ni42NiwyMzAuNDdDMTE3My45NSwyMjkuODMgMTE3OC42OCwyMjguOTMgMTE4My44OCwyMjcuMjBDMTE5OC4wMCwyMjIuNDggMTIwNy4yNCwyMTIuOTcgMTIxMS4wNCwxOTkuMjVDMTIxMS45NSwxOTUuOTQgMTIxMi4xNCwxOTMuOTYgMTIxMi4xNCwxODcuNzVDMTIxMi4xMywxODAuMjUgMTIxMS44NCwxNzguMzcgMTIwOS43NywxNzIuMzVDMTIwNi4wMCwxNjEuNDAgMTE5NS4zNCwxNTIuOTYgMTE4MS4wMCwxNDkuNThDMTE3My42NywxNDcuODUgMTE3MS43NCwxNDcuNzYgMTE0Mi43NSwxNDcuNzZMMTExMy43NSwxNDcuNzVMMTExMy42MiwxODguNzVDMTExMy41NSwyMTEuMzAgMTExMy42MCwyMzAuMDMgMTExMy43MywyMzAuMzhDMTExNC4wNCwyMzEuMTggMTE1Ny42MiwyMzEuMjYgMTE2Ni42NiwyMzAuNDdaTTExNzMuMDQsMTA4LjI3QzExNzkuNTYsMTA3LjI3IDExODMuMDksMTA2LjI2IDExODcuMjcsMTA0LjE5QzExOTUuNTQsMTAwLjEwIDEyMDAuOTgsOTMuNTQgMTIwMy4yOSw4NC44OEMxMjA0LjA4LDgxLjkyIDEyMDQuMjYsNzAuNTEgMTIwMy41Niw2OC4yMEMxMjAzLjMyLDY3LjQwIDEyMDIuODIsNjUuNzQgMTIwMi40Niw2NC41MEMxMjAwLjAyLDU2LjIwIDExOTIuODcsNDkuMzcgMTE4My4zOCw0Ni4yOUMxMTc2LjYxLDQ0LjA5IDExNzUuMTIsNDQuMDAgMTE0My42Miw0NC4wMEwxMTEzLjUwLDQ0LjAwTDExMTMuNTAsNzYuMTdDMTExMy41MCw5My44NiAxMTEzLjY1LDEwOC40OCAxMTEzLjgzLDEwOC42N0MxMTE0LjAyLDEwOC44NSAxMTI2LjM2LDEwOS4wMCAxMTQxLjI1LDEwOS4wMEMxMTYyLjQyLDEwOS4wMCAxMTY5LjM3LDEwOC44NCAxMTczLjA0LDEwOC4yN1oiLz48L3N2Zz4=';
 const GREEN = '#60BC94';
+StripC.setLogo(LOGO); StripC.onChange(()=>{});
 function syncClip(c,t){ const v=c.v, want=((t%c.dur)+c.dur)%c.dur, d=Math.abs(v.currentTime-want);
   if (d>.2 && d<c.dur-.2) v.currentTime=want; if (playing && v.paused) v.play().catch(()=>{}); if (!playing && !v.paused) v.pause(); }
 function teamBg(ctx,w,h,t,sx){ // crop of the team background (BG.mp4) at the screen's aspect
@@ -522,6 +777,7 @@ const DRAW = {
     ctx.font=`400 ${h*.075}px ${SF}`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.8)'; ctx.direction=k===0?'rtl':'ltr';
     ctx.fillText(['أهلاً بك في ليلة الكلاسيكو','Welcome to El Clásico Night','Bienvenidos a la noche del Clásico'][k], w/2, h*.89); ctx.textAlign='left';
   },
+  strip(ctx,w,h,t,s){ teamBg(ctx,w,h,t,0); StripC.draw(ctx,w,h,t); },
   clip(ctx,w,h,t,s){
     const c = CLIPS[s.id];
     if (!c || !c.v || !c.ready){ brandBg(ctx,w,h,t); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.textAlign='center';
@@ -750,6 +1006,7 @@ function buildInspector(){
   const s=byId(sel.id), inst=s.inst[sel.i], el=$('insp'), P=inst.place;
   const modeBtns=MODES.filter(([k])=>(k!=='omar'||s.id==='C')&&(k!=='clip'||CLIPS[s.id])&&(k!=='welcome'||s.id==='OA'||s.id==='OB')).map(([k,l])=>`<button data-m="${k}" class="${!s.media&&s.mode===k?'on':''}">${l}</button>`).join('');
   let mediaInfo='';
+  if (s.mode==='strip') mediaInfo=`<div class="ok">✓ Live: draft 8 text from the Display C page, over the team background. Edits there show here instantly.</div>`;
   if (!s.media && s.mode==='clip' && CLIPS[s.id]){ const c=CLIPS[s.id], ok=c.w===s.res[0]&&c.h===s.res[1];
     mediaInfo = ok ? `<div class="ok">✓ ${c.src}: ${c.w}×${c.h}, ${c.dur}s loop, exact spec match</div>` : `<div class="warn">${c.src}: ${c.w}×${c.h}. Spec is ${s.res[0]}×${s.res[1]}.${c.note?' '+c.note:''}</div>`; }
   if (s.media){ const ra=s.res[0]/s.res[1], ma=s.media.w/s.media.h, diff=Math.abs(ma-ra)/ra*100, exact=s.media.w===s.res[0]&&s.media.h===s.res[1];
