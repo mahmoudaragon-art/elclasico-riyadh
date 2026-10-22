@@ -309,7 +309,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     TOP.forEach(([cx, y, size, m], li) => {
       const toks = tokens(m, size), els = buildToks(g, toks, y, { "font-size": size });
       const nk = toks.filter(o => o.kash).length, spans0 = spansOf(toks, place(toks, [], SPACE * size / FS).pos);
-      const lines = spans0.map(() => el("line", { stroke: "#fff", "stroke-width": 9, y1: y + 34, y2: y + 34 }, g));
+      const lines = spans0.map(() => el("line", { stroke: "#fff", "stroke-width": 9, y1: y + 34, y2: y + 34, display: "none" }, g)); // underlines removed
       tops.push({ cx, y, size, toks, els, nk, lines, li });
     });
   }
@@ -413,7 +413,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         const ln = w.unders[si]; if (!ln) return;
         const d = ease((tau - 1.0 - si * 0.15) / 0.35) * closing * show, r = s.r - PAD, l = s.l - PAD;
         ln.setAttribute("x1", r); ln.setAttribute("x2", r - (r - l) * d);
-        ln.setAttribute("display", d < 0.01 ? "none" : "inline");
+        ln.setAttribute("display", "none"); // underlines removed
       });
 
       // free pieces
