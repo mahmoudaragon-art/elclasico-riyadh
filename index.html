@@ -105,9 +105,11 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .cetbl td:first-child{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
 a.btnlink{font:inherit;color:#fff;background:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:7px 12px;text-decoration:none}
 a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
-#mini{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;width:300px;height:150px;border:1px solid var(--line);border-radius:6px;background:rgba(9,11,16,.85);pointer-events:none}
+.perfhud{display:none;position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:14px;font-family:var(--mono);font-size:11px;color:var(--live);background:rgba(9,11,16,.8);border:1px solid var(--line);border-radius:4px;padding:3px 8px;pointer-events:none;font-variant-numeric:tabular-nums}
+#mini{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:14px;width:300px;height:150px;border:1px solid rgba(255,255,255,.35);border-radius:6px;background:transparent;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.45)}
 .pad{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:40px;display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:6px}
-.pad button{padding:0;font-size:18px;background:rgba(23,28,39,.85);touch-action:none;user-select:none}
+.pad button{padding:0;font-size:18px;background:rgba(23,28,39,.85);touch-action:none}
+.pad,.pad *,#gl,.labels,.hint,.hud{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .pad button[data-k=fwd]{grid-column:2}
 .pad button[data-k=left]{grid-column:1;grid-row:2}
 .pad button[data-k=back]{grid-column:2;grid-row:2}
@@ -238,6 +240,7 @@ a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
 <script>
 /* Display C walking-messages strip (Omar's draft 8 engine), ported from SVG to Canvas 2D for the 3D preview.
    Same constants, kashida rule, timing and moods as display-c/. Text comes from the shared copy store. */
@@ -488,6 +491,9 @@ const StripC = (() => {
 <script>
 (() => {
 const $ = id => document.getElementById(id);
+// Phones and tablets get the light path: lower render resolution, half-size videos, slower canvas updates.
+const LITE = (() => { try { const q = new URLSearchParams(location.search).get('q'); if (q === 'hi') return false; if (q === 'lite') return true; } catch(e){}
+  return matchMedia('(pointer:coarse)').matches || Math.min(screen.width, screen.height) < 820; })();
 /* Plan pixel → world metres. Plan image: building 48→1915 px = 59 m, 38→965 px = 29 m. */
 const Q = (px, py, y = 0) => new THREE.Vector3((px - 48) / 31.64 - 29.5, y, (py - 38) / 31.97 - 14.5);
 const DEN = 520, DEN_OUT = 260;
@@ -545,8 +551,10 @@ const PRESETS = {
 
 /* ---------- Three setup ---------- */
 const canvas = $('gl');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+// Adaptive resolution: start sharp, step down only if the frame rate drops, step back up when there is room.
+const PR_MAX = Math.min(devicePixelRatio, 2), PR_MIN = Math.min(devicePixelRatio, 1);
+let prNow = PR_MAX; renderer.setPixelRatio(prNow);
 renderer.outputEncoding = THREE.sRGBEncoding;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#090b10');
@@ -779,9 +787,12 @@ const CLIPS = {
 Object.entries(CLIPS).forEach(([id,c]) => { (async () => {
   try {
     const v = document.createElement('video'); v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'auto';
-    const ext = v.canPlayType('video/mp4; codecs="avc1.640028"') ? '.mp4' : '.webm';
-    const r = await fetch(c.file + ext); if (!r.ok) throw new Error(r.status);
-    v.addEventListener('loadeddata', () => { c.ready = true; });
+    const mp4 = v.canPlayType('video/mp4; codecs="avc1.640028"');
+    const file = c.file + (mp4 ? '.mp4' : '.webm');
+    v.addEventListener('error', async () => { if (c.retried || file.endsWith('.webm')) return; c.retried = true;
+      try { const r2 = await fetch(c.file + '.webm'); if (r2.ok) { v.src = URL.createObjectURL(await r2.blob()); v.play().catch(()=>{}); } } catch(e){} });
+    const r = await fetch(file); if (!r.ok) throw new Error(r.status);
+    v.addEventListener('loadeddata', () => { c.ready = true; attachVideo(id); });
     v.src = URL.createObjectURL(await r.blob()); c.v = v; v.play().catch(()=>{});
   } catch (e) { c.failed = true; }
 })(); });
@@ -1024,7 +1035,11 @@ for (const s of SCREENS){
   s.count=s.count||1; s.fit='stretch'; s.media=null;
   s.canvas=makeCanvas(s.res, s.maxDim); s.ctx=s.canvas.getContext('2d');
   s.tex=new THREE.CanvasTexture(s.canvas); s.tex.encoding=THREE.sRGBEncoding; s.tex.anisotropy=8;
-  const mat = new THREE.MeshBasicMaterial({ map:s.tex, side:THREE.FrontSide, toneMapped:false, transparent:!!s.cuts, alphaTest:s.cuts?.5:0 });
+  const mat = new THREE.MeshBasicMaterial({ map:s.tex, side:THREE.FrontSide, toneMapped:false, transparent:false, alphaTest:s.cuts?.5:0 });
+  s.mat = mat;
+  if (s.cuts){ const mw=1024, mh=Math.max(16,Math.round(1024*s.res[1]/s.res[0])), mc=document.createElement('canvas'); mc.width=mw; mc.height=mh;
+    const mx=mc.getContext('2d'); mx.fillStyle='#fff'; mx.fillRect(0,0,mw,mh); mx.fillStyle='#000'; const kx=mw/s.res[0], ky=mh/s.res[1];
+    s.cuts.forEach(([x,y,cw,ch])=>mx.fillRect(x*kx,y*ky,cw*kx,ch*ky)); mat.alphaMap=new THREE.CanvasTexture(mc); }
   const den = s.den || DEN;
 
   if (s.type==='ribbon'){
@@ -1072,7 +1087,16 @@ for (const s of SCREENS){
 /* ---------- state + render ---------- */
 let playing=true, t=0, last=performance.now(), sel={id:'A',i:0}, showMap=false;
 const byId = id => SCREENS.find(s=>s.id===id);
+function attachVideo(id){
+  const c=CLIPS[id], s=SCREENS.find(x=>x.id===id); if (!c||!c.v||!s||!s.mat) return;
+  if (!s.vtex){ s.vtex=new THREE.VideoTexture(c.v); s.vtex.encoding=THREE.sRGBEncoding; s.vtex.minFilter=THREE.LinearFilter; s.vtex.generateMipmaps=false; }
+  applyMap(s);
+}
+function applyMap(s){ const useV = s.vtex && s.mode==='clip' && !s.media; const m = useV ? s.vtex : s.tex; if (s.mat.map!==m){ s.mat.map=m; s.mat.needsUpdate=true; } }
+const usesVideo = s => s.vtex && s.mat && s.mat.map===s.vtex;
 function render(s){
+  if (s.mat) applyMap(s);
+  if (usesVideo(s)) return;
   const {ctx,canvas:c}=s, w=c.width, h=c.height; ctx.save(); ctx.globalCompositeOperation='source-over';
   if (s.media) drawMedia(ctx,w,h,s);
   else if (s.sections && !['clip','omar'].includes(s.mode)){
@@ -1259,6 +1283,7 @@ addEventListener('keydown',e=>{ if (!FP.on) return; if (e.target.closest&&e.targ
   if (e.code==='Escape'){ setFP(false); return; } const k=KEYMAP[e.code]; if (k){ FP.keys[k]=true; FP.goal=null; e.preventDefault(); } });
 addEventListener('keyup',e=>{ const k=KEYMAP[e.code]; if (k) FP.keys[k]=false; });
 addEventListener('blur',()=>{ FP.keys={}; });
+['contextmenu','selectstart','dragstart'].forEach(ev=>{ $('pad').addEventListener(ev,e=>e.preventDefault()); canvas.addEventListener(ev,e=>e.preventDefault()); });
 $('pad').querySelectorAll('button').forEach(b=>{ const k=b.dataset.k;
   b.addEventListener('pointerdown',e=>{ e.preventDefault(); FP.keys[k]=true; FP.goal=null; b.classList.add('on'); });
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{ FP.keys[k]=false; b.classList.remove('on'); })); });
@@ -1292,6 +1317,7 @@ function fpStep(dt){
   fpEuler.set(FP.pitch,FP.yaw,0); camera.quaternion.setFromEuler(fpEuler);
 }
 // minimap: top-down ortho render with a "you are here" marker on its own layer
+const MINI_BG=new THREE.Color('#2a3040');
 const mini=$('mini'), miniCam=new THREE.OrthographicCamera(-33,33,17,-17,1,200);
 miniCam.position.set(0,90,0); miniCam.up.set(0,0,-1); miniCam.lookAt(0,0,0); miniCam.layers.enable(1);
 const you=new THREE.Mesh(new THREE.ConeGeometry(1.6,4,3), new THREE.MeshBasicMaterial({color:'#ffffff'})); you.rotation.x=-Math.PI/2; you.position.z=-1.2; you.userData.mini=true;
@@ -1303,7 +1329,9 @@ function drawMini(){
   const x=mr.left-r.left, y=r.bottom-mr.bottom, w=mr.width, h=mr.height;
   const asp=w/h, halfW=33, halfH=Math.max(17,halfW/asp); miniCam.left=-halfW; miniCam.right=halfW; miniCam.top=halfW/asp; miniCam.bottom=-halfW/asp; miniCam.updateProjectionMatrix();
   renderer.setScissorTest(true); renderer.setScissor(x,y,w,h); renderer.setViewport(x,y,w,h);
+  const fogKeep=scene.fog, bgKeep=scene.background, hK=hemi.intensity, dK=dir.intensity; scene.fog=null; scene.background=MINI_BG; hemi.intensity=1.5; dir.intensity=1.3;
   renderer.render(scene,miniCam);
+  scene.fog=fogKeep; scene.background=bgKeep; hemi.intensity=hK; dir.intensity=dK;
   renderer.setScissorTest(false); renderer.setViewport(0,0,r.width,r.height);
 }
 
@@ -1312,21 +1340,77 @@ addEventListener('resize',resize);
 
 const startCam=CAMS['Overview']; camera.position.copy(Q(...startCam[0])); controls.target.copy(Q(...startCam[1]));
 const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
-let acc=0; const tmp=new THREE.Vector3();
+let acc=0, frameN=0; const tmp=new THREE.Vector3();
+const frustum=new THREE.Frustum(), pvm=new THREE.Matrix4();
+function updateVis(){
+  camera.updateMatrixWorld(); pvm.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); frustum.setFromProjectionMatrix(pvm);
+  SCREENS.forEach(s=>{ s.vis = s.inst.some(x=>{ if (!x.sphere){ const b=new THREE.Box3(); x.inner.children.filter(m=>m.userData.pick).forEach(m=>b.expandByObject(m)); x.sphere=b.getBoundingSphere(new THREE.Sphere()); }
+    return frustum.intersectsSphere(x.sphere); }); });
+}
+function manageVideos(covered){
+  const bgWanted = (!covered && SCREENS.some(s=>s.vis && ['OA','OB','C'].includes(s.id))) || !document.getElementById('cedit').hidden;
+  Object.entries(CLIPS).forEach(([id,c])=>{ if (!c.v || !c.ready) return;
+    const s=SCREENS.find(x=>x.id===id);
+    const want = playing && (id==='BGC' ? bgWanted : (!covered && s && s.vis && usesVideo(s)));
+    if (want){ syncClip(c,t); } else if (!c.v.paused) c.v.pause(); });
+}
 function loop(now){
   const dt=Math.min(.1,(now-last)/1000); last=now; if (playing) t+=dt;
   $('clock').textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(Math.floor(t%60)).padStart(2,'0')}`;
-  acc+=dt; if (acc>1/24){ acc=0; SCREENS.forEach(s=>{ if (animated(s)&&(playing||s.media)) render(s); }); }
+  frameN++;
+  const covered = !document.getElementById('cview').hidden;
+  if (!covered) updateVis();
+  if (frameN%15===0 || covered) manageVideos(covered);
+  acc+=dt; if (!covered && acc>1/24){ acc=0; SCREENS.forEach(s=>{ if (s.vis && animated(s)&&(playing||s.media)) render(s); }); }
+  if (covered){ requestAnimationFrame(loop); return; }
   if (FP.on) fpStep(dt); else if (walk) walkStep();
   if (fly){ fly.k=Math.min(1,fly.k+dt/1.1); const e=ease(fly.k); camera.position.lerpVectors(fly.p0,fly.p1,e); controls.target.lerpVectors(fly.t0,fly.t1,e); if (fly.k>=1) fly=null; }
   if (!FP.on) controls.update(); helpers.forEach(h=>h.update()); renderer.render(scene,camera); if (FP.on) drawMini();
-  if (showLabels){ const r=$('stage').getBoundingClientRect();
+  if (showLabels && (!LITE || frameN%3===0)){ const r=$('stage').getBoundingClientRect();
     for (const {d,inst} of labelEls){ tmp.copy(inst.anchor); inst.inner.localToWorld(tmp); tmp.project(camera);
       const vis=tmp.z<1&&Math.abs(tmp.x)<1.05&&Math.abs(tmp.y)<1.05; d.hidden=!vis;
       if (vis){ d.style.left=((tmp.x+1)/2*r.width)+'px'; d.style.top=((1-tmp.y)/2*r.height)+'px'; d.classList.toggle('sel',inst.s.id===sel.id&&inst.i===sel.i); } } }
   requestAnimationFrame(loop);
 }
-setShell(true); resize(); buildList(); buildInspector(); updateHelpers();
+setShell(true);
+/* ---------- performance: merge every static mesh into one mesh per material ---------- */
+(function mergeStatic(){
+  if (!THREE.BufferGeometryUtils) return;
+  const skip=new Set();
+  instances.forEach(x=>x.outer.traverse(o=>skip.add(o)));
+  shell.forEach(g=>g.traverse(o=>skip.add(o)));
+  youG.traverse(o=>skip.add(o));
+  scene.updateMatrixWorld(true);
+  const byMat=new Map(), victims=[];
+  scene.traverse(o=>{
+    if (!o.isMesh || o.isInstancedMesh || skip.has(o) || o===ground || o===floor || Array.isArray(o.material)) return;
+    const g0=o.geometry; if (!g0.attributes.position || !g0.attributes.normal || !g0.attributes.uv) return;
+    const g=g0.index ? g0.toNonIndexed() : g0.clone();
+    Object.keys(g.attributes).forEach(k=>{ if (!['position','normal','uv'].includes(k)) g.deleteAttribute(k); });
+    g.morphAttributes={}; g.clearGroups(); g.applyMatrix4(o.matrixWorld);
+    if (!byMat.has(o.material)) byMat.set(o.material,[]); byMat.get(o.material).push(g); victims.push(o);
+  });
+  let merged=0;
+  byMat.forEach((gs,mat)=>{
+    const m=THREE.BufferGeometryUtils.mergeBufferGeometries(gs,false);
+    if (!m) return;
+    gs.forEach(g=>g.dispose());
+    const mesh=new THREE.Mesh(m,mat); mesh.matrixAutoUpdate=false; scene.add(mesh); merged++;
+  });
+  victims.forEach(o=>{ if (byMat.has(o.material) && o.parent) o.parent.remove(o); });
+  window.__merged={ from:victims.length, to:merged };
+})();
+// small FPS · draw-call readout (test build)
+(function(){ const el=document.createElement('div'); el.className='perfhud'; $('stage').appendChild(el); let n=0,t0=performance.now(), low=0, high=0;
+  (function tick(now){ n++; if (now-t0>1000){ const fps=Math.round(n*1000/(now-t0));
+      if (document.getElementById('cview').hidden){
+        if (fps<45){ low++; high=0; } else if (fps>=57){ high++; low=0; } else { low=0; high=0; }
+        if (low>=2 && prNow>PR_MIN){ prNow=Math.max(PR_MIN, +(prNow-0.25).toFixed(2)); renderer.setPixelRatio(prNow); resize(); low=0; }
+        if (high>=4 && prNow<PR_MAX){ prNow=Math.min(PR_MAX, +(prNow+0.25).toFixed(2)); renderer.setPixelRatio(prNow); resize(); high=0; }
+      }
+      el.textContent=`${fps} fps · ${renderer.info.render.calls} draws · res ${prNow}×`; n=0; t0=now; }
+    requestAnimationFrame(tick); })(t0); })();
+resize(); buildList(); buildInspector(); updateHelpers();
 applyPreset('Arrival');
 (document.fonts?document.fonts.ready:Promise.resolve()).then(()=>applyPreset('Arrival'));
 requestAnimationFrame(loop);

@@ -45,11 +45,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .frame .pic{background:#000;display:flex;justify-content:center;direction:ltr}
 .frame .pic svg{display:block;width:100%;height:auto;max-height:300px}
 .frame .meta{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
-.tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--guide);direction:ltr;text-align:right}
+.tag{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--guide);direction:ltr;text-align:left}
 .frame h3{margin:0;font-size:17px;font-weight:600}
 .frame p{margin:0;color:var(--muted);font-size:14px}
 .copy{width:100%;border-collapse:collapse;font-size:14px}
-.copy th,.copy td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.copy th,.copy td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 .copy th{color:var(--muted);font-weight:400;font-size:12.5px}
 .copy td b{font-weight:800;color:#fff}
 .copy .mood{font-family:var(--mono);font-size:11.5px;color:var(--guide);direction:ltr}
@@ -71,7 +71,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .saved{font-family:var(--mono);font-size:12px;color:#35e0a8;direction:ltr}
 .edh3{margin:6px 0 0;font-size:14px;font-weight:600;color:var(--muted)}
 .topgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:10px}
-.topgrid label{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:11.5px;color:var(--muted);direction:ltr;text-align:right}
+.topgrid label{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:11.5px;color:var(--muted);direction:ltr;text-align:left}
 .editor input{font:inherit;font-family:var(--ui);font-size:15px;color:var(--fg);background:var(--raise);border:1px solid var(--line);border-radius:4px;padding:8px 10px;width:100%;box-sizing:border-box;min-width:0}
 .editor input:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 .copy td input{min-width:200px}
@@ -79,11 +79,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
-<div class="wrap" dir="rtl">
+<div class="wrap" dir="ltr">
   <header>
     <div>
-      <h1>Display C · رسائل تلحقك · درافت 8</h1>
-      <p class="sub">تحت: رسائل بستايل الشات تمشي معك بسرعة الإنسان وعلى مستوى عينك، تنفتح بسلايدر stc ولكل سطر شخصية. فوق: عبارات ثابتة عن منتجات stc bank. أبيض فقط، فوق خلفية التيم (BG.mp4).</p>
+      <h1>Display C · Walking messages · Draft 8</h1>
+      <p class="sub">Bottom: chat-style messages that walk with you at human pace, at eye level. Each opens with the stc slider and has its own personality. Top: fixed stc bank product lines. White only, over the team background (BG.mp4).</p>
     </div>
     <div class="chips">
       <span class="chip"><b>20160 × 1440</b> px</span>
@@ -93,10 +93,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     </div>
   </header>
 
-  <section class="stripbox" aria-label="معاينة الشاشة كاملة">
+  <section class="stripbox" aria-label="Full screen preview">
     <div class="scroll"><div class="stack" id="stack">
       <video id="bgVid" muted loop playsinline preload="auto" aria-hidden="true"></video>
-      <svg id="main" viewBox="0 0 20160 1440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="الشاشة كاملة بالمقاس الحقيقي">
+      <svg id="main" viewBox="0 0 20160 1440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Display C at true proportions">
         <defs>
           <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stop-color="#0b1236"/>
@@ -161,47 +161,47 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     </div></div>
     <div class="ctrl">
       <div class="row" style="display:flex;gap:6px;flex-wrap:wrap">
-        <span hidden><button class="zb on" data-z="1">كامل</button><button class="zb" data-z="2">×2</button><button class="zb" data-z="4">×4</button><button class="zb" data-z="8">×8 تتبّع</button></span>
-        <button id="fs">ملء الشاشة</button>
+        <span hidden><button class="zb on" data-z="1">Fit</button><button class="zb" data-z="2">×2</button><button class="zb" data-z="4">×4</button><button class="zb" data-z="8">×8 follow</button></span>
+        <button id="fs">Full screen</button>
       </div>
-      <button id="play" class="on">إيقاف</button>
-      <button id="bgBtn" hidden>خلفية: فيديو التيم</button>
-      <button id="guideBtn" class="on" hidden>الدلائل: ظاهرة</button>
+      <button id="play" class="on">Pause</button>
+      <button id="bgBtn" hidden>Background: team video</button>
+      <button id="guideBtn" class="on" hidden>Guides: on</button>
       <div class="scrub">
-        <input id="scrub" type="range" min="0" max="21" step="0.05" value="0" aria-label="وقت اللوب">
+        <input id="scrub" type="range" min="0" max="21" step="0.05" value="0" aria-label="Loop time">
         <span class="clock" id="clock">00.0 / 21s</span>
       </div>
     </div>
   </section>
 
-  <section class="editor" aria-label="تعديل نصوص الشاشة">
+  <section class="editor" aria-label="Edit screen text">
     <div class="edhead">
       <div>
-        <h2>نصوص الشاشة</h2>
-        <p class="sub" style="margin:0">عدّل أي سطر وشوفه على الشاشة فوق، وبعدين اضغط «حفظ» علشان يظهر في البريفيو الثري دي. حط الكلمة البولد بين *نجمتين*، والكشيدة تتطبّق عليها لوحدها.</p>
+        <h2>Screen text</h2>
+        <p class="sub" style="margin:0">Change any line and watch it on the screen above, then press Save to send it to the 3D preview. Put a bold word between *stars*; kashida is applied to bold words automatically.</p>
       </div>
       <div class="edbtns">
         <span class="saved" id="saved" aria-live="polite"></span>
-        <button id="saveTxt" class="on">حفظ</button>
-        <button id="resetTxt">رجوع للنص الأصلي</button>
+        <button id="saveTxt" class="on">Save</button>
+        <button id="resetTxt">Back to draft 8</button>
       </div>
     </div>
-    <h3 class="edh3">الشريط الفوقي</h3>
+    <h3 class="edh3">Top band</h3>
     <div class="topgrid">
       <label>CONTENT 1<input id="top0" dir="rtl"></label>
       <label>CONTENT 2<input id="top1" dir="rtl"></label>
-      <label>CONTENT 2 · السطر الصغير<input id="sub" dir="ltr"></label>
+      <label>CONTENT 2 · small line<input id="sub" dir="ltr"></label>
       <label>CONTENT 3<input id="top2" dir="rtl"></label>
       <label>CONTENT 5<input id="top3" dir="rtl"></label>
     </div>
-    <h3 class="edh3">الرسائل</h3>
+    <h3 class="edh3">Messages</h3>
     <div class="tbl">
       <table class="copy">
-        <thead><tr><th>المكان</th><th>الرسالة 1 · الإلحاح</th><th>الرسالة 2 · كروية</th><th>الرسالة 3 · الصابر</th></tr></thead>
+        <thead><tr><th>Position</th><th>Message 1 · Persistent</th><th>Message 2 · Football</th><th>Message 3 · Patient</th></tr></thead>
         <tbody id="edBody"></tbody>
       </table>
     </div>
-    <textarea id="copyOut" readonly hidden aria-label="النصوص"></textarea>
+    <textarea id="copyOut" readonly hidden aria-label="Text"></textarea>
   </section>
 
 
@@ -515,12 +515,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   }
 
   const segs = [
-    [0,3840,"CONTENT 1 · 0–3840","المدخل","فوق: الشعار و«حسابك كامل من جوالك». تحت: أول رسالة «تكتب» وتنفتح معك."],
-    [3840,7680,"CONTENT 2 · 3840–7680","أول سؤال","فوق: «ليلة الكلاسيكو». الرسالة تسأل عن حساب مكسب."],
-    [7680,11520,"CONTENT 3 · 7680–11520","الباب","فوق: «ادفع بلمسة · بطاقة Visa». الرسالة تختفي ورا الباب وتطلّ من الجهة الثانية."],
-    [11520,15360,"CONTENT 4 · 11520–15360","افتحه الحين","الرسالة تنبض، والكلمات ترقص، أو تسبقك وتوقف تستناك."],
-    [15360,19200,"CONTENT 5 · 15360–19200","الختام","فوق: «حساب مكسب · حوّل بثواني». تحت: «استمتع بالمباراة» وسلايدر يتعبّى."],
-    [19200,20160,"CONTENT 6 · 19200–20160","الخروج","الشعار فوق، والرسالة تطلع من الشاشة."]
+    [0,3840,"CONTENT 1 · 0–3840","Entrance","Top: logo and the account line. Bottom: the first message types and opens with you."],
+    [3840,7680,"CONTENT 2 · 3840–7680","First question","Top: El Clásico night. The message asks about the Maksab account."],
+    [7680,11520,"CONTENT 3 · 7680–11520","The door","The message hides behind the door and peeks out the other side."],
+    [11520,15360,"CONTENT 4 · 11520–15360","Open it now","The message pulses, the words dance, or it runs ahead and waits for you."],
+    [15360,19200,"CONTENT 5 · 15360–19200","Finale","Top: Maksab line. Bottom: enjoy the match, with a filling slider."],
+    [19200,20160,"CONTENT 6 · 19200–20160","Exit","Logo on top; the message leaves the screen."]
   ];
   const fr = $("frames");
   if (fr) segs.forEach(([a,b,tag,hh,p]) => {
@@ -533,10 +533,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   let playing = !matchMedia("(prefers-reduced-motion: reduce)").matches, T = LOOP * 10 + 5, last = performance.now();
   const playBtn = $("play"), scrub = $("scrub");
   scrub.max = LOOP;
-  const sync = () => { playBtn.textContent = playing ? "إيقاف" : "تشغيل"; playBtn.classList.toggle("on", playing); };
+  const sync = () => { playBtn.textContent = playing ? "Pause" : "Play"; playBtn.classList.toggle("on", playing); };
   playBtn.onclick = () => { playing = !playing; last = performance.now(); sync(); };
   scrub.oninput = () => { T = LOOP * 10 + +scrub.value; playing = false; sync(); render(T); };
-  const BGS = [["video","خلفية: فيديو التيم"],["navy","خلفية: كحلي"],["alpha","خلفية: شفاف (ألفا)"]];
+  const BGS = [["video","Background: team video"],["navy","Background: navy"],["alpha","Background: transparent (alpha)"]];
   let bgI = 0;
   const vid = $("bgVid");
   const applyBg = () => { const m = BGS[bgI][0];
@@ -562,7 +562,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   $("guideBtn").onclick = e => {
     guides = !guides;
     for (const id of ["guides","doorLabel"]) $(id).setAttribute("display", guides ? "inline" : "none");
-    e.currentTarget.textContent = guides ? "الدلائل: ظاهرة" : "الدلائل: مخفية";
+    e.currentTarget.textContent = guides ? "Guides: on" : "Guides: off";
     e.currentTarget.classList.toggle("on", guides);
   };
   sync();
@@ -614,9 +614,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 <script>
 (() => {
   const $ = id => document.getElementById(id), C = window.__copy;
-  const PLACES = ["المدخل","CONTENT 2","قبل الباب","بعد الباب","CONTENT 3–4","CONTENT 4–5","منطقة المشاهدة"];
+  const PLACES = ["Entrance","CONTENT 2","Before the door","After the door","CONTENT 3–4","CONTENT 4–5","Viewing area"];
   const body = $("edBody");
-  PLACES.forEach((pl, i) => { const tr = document.createElement("tr"); tr.innerHTML = `<td>${pl}</td>` + [0,1,2].map(si => `<td><input id="m${si}_${i}" dir="rtl" aria-label="${pl} · الرسالة ${si+1}"></td>`).join(""); body.appendChild(tr); });
+  PLACES.forEach((pl, i) => { const tr = document.createElement("tr"); tr.innerHTML = `<td>${pl}</td>` + [0,1,2].map(si => `<td><input id="m${si}_${i}" dir="rtl" aria-label="${pl} · message ${si+1}"></td>`).join(""); body.appendChild(tr); });
   function fill(c) { c.top.forEach((m, i) => $("top" + i).value = m); $("sub").value = c.sub; c.scripts.forEach((r, si) => r.forEach((m, i) => $(`m${si}_${i}`).value = m)); }
   function read() { return { top: [0,1,2,3].map(i => $("top" + i).value), sub: $("sub").value, scripts: [0,1,2].map(si => [0,1,2,3,4,5,6].map(i => $(`m${si}_${i}`).value)) }; }
   const embedded = window.parent !== window;
@@ -624,7 +624,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   function status(msg, cls) {
     const el = $("saved");
-    el.textContent = msg != null ? msg : saving ? "بيحفظ…" : dirty ? "تعديلات مش محفوظة" : (embedded && shared ? "محفوظ · ظاهر للكل في الثري دي" : "محفوظ");
+    el.textContent = msg != null ? msg : saving ? "Saving…" : dirty ? "Unsaved changes" : (embedded && shared ? "Saved · everyone sees it in the 3D" : "Saved");
     el.style.color = cls === "err" || (dirty && msg == null) ? "#ffb547" : "#35e0a8";
     $("saveTxt").disabled = !dirty || saving || !canWrite;
   }
@@ -635,7 +635,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   $("saveTxt").onclick = () => {
     const c = read(); saving = true; status();
     if (embedded) { parent.postMessage({ type: "elc-save", copy: c }, "*"); return; }
-    C.applyCopy(c); C.saveCopy(); saved = c; dirty = false; saving = false; status("اتحفظ على الجهاز ده");
+    C.applyCopy(c); C.saveCopy(); saved = c; dirty = false; saving = false; status("Saved on this device");
   };
   addEventListener("message", e => {
     if (!embedded || e.source !== window.parent) return;
@@ -643,12 +643,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     if (m.type === "elc-copy" && m.copy) {
       shared = !!m.shared; canWrite = m.canWrite !== false; saved = m.copy;
       if (!dirty) { C.applyCopy(m.copy); C.rebuild(); fill(m.copy); }
-      status(canWrite ? null : "عرض بس · الحفظ للي عندهم صلاحية تعديل");
+      status(canWrite ? null : "View only · saving needs edit access");
     }
     if (m.type === "elc-saved") {
       saving = false;
       if (m.ok) { saved = read(); dirty = false; shared = !!m.shared; status(); }
-      else status(m.code === "invalid_argument" ? "مش متاح لك تحفظ. اطلب صلاحية تعديل من صاحب اللينك." : "ما اتحفظش. اتأكد من النت واضغط «حفظ» تاني.", "err");
+      else status(m.code === "invalid_argument" ? "You can’t save here. Ask the owner for edit access." : "Not saved. Check your connection and press Save again.", "err");
     }
   });
   if (embedded) parent.postMessage({ type: "elc-get" }, "*");
