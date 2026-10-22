@@ -362,7 +362,7 @@ const StripC = (() => {
   [[3960, 4700], [14480, 15280]].forEach(([a, b]) => { for (let i = 0; i < 3; i++) chevrons.push({ i, x: a + 110 + i * ((b - a - 220) / 2) }); });
 
   // the long stc slider along the bottom: white bar, green square of the same height at its leading end
-  const SL = { x0: 0, x1: 20030, y: 1293, th: 16 };
+  const SL = { x0: 0, x1: 20030, y: 1269, th: 64 };
   function sliderSpan(T) {
     const q = ((T % LOOP) + LOOP) % LOOP / LOOP;
     const e = inout(q / 0.72), s = inout((q - 0.86) / 0.11);

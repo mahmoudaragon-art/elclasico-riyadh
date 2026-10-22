@@ -145,7 +145,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
           </g>
 
           <g id="art" mask="url(#doorMask)" fill="#fff" font-family="STC Forward, Tahoma, sans-serif">
-            <rect id="slBar" x="0" y="1293" width="0" height="16"/><rect id="slSq" x="0" y="1293" width="16" height="16" fill="#60BC94"/>
+            <rect id="slBar" x="0" y="1269" width="0" height="64"/><rect id="slSq" x="0" y="1269" width="64" height="64" fill="#60BC94"/>
             <g id="squares"></g>
             <g id="chevrons"></g>
             <!-- static anchors, top band -->
@@ -497,7 +497,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
         ln.setAttribute("x1", r - len * start); ln.setAttribute("x2", r - len * end);
       });
     });
-    { const q = ((T % LOOP) + LOOP) % LOOP / LOOP, e = inout(q / 0.72), st = inout((q - 0.86) / 0.11), L = 20030 - 16;
+    { const q = ((T % LOOP) + LOOP) % LOOP / LOOP, e = inout(q / 0.72), st = inout((q - 0.86) / 0.11), L = 20030 - 64;
       const a = L * st, b = L * e, on = e > st + 0.0005;
       $("slBar").setAttribute("x", a.toFixed(1)); $("slBar").setAttribute("width", on ? (b - a).toFixed(1) : 0);
       $("slSq").setAttribute("x", b.toFixed(1)); $("slSq").setAttribute("display", on ? "inline" : "none"); }
