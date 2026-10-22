@@ -78,6 +78,9 @@ button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .place output{text-align:right;font-variant-numeric:tabular-nums}
 textarea.dump{width:100%;min-height:90px;font-family:var(--mono);font-size:10.5px;background:var(--raise);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box}
 
+.cview{position:fixed;inset:0;z-index:70;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.cvbar{display:flex;align-items:center;gap:12px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--panel)}
+.cview iframe{flex:1;width:100%;border:0;display:block;background:var(--bg)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .cestate{font-family:var(--mono);font-size:11px;color:var(--muted)}
 .cestate.dirty{color:var(--warn)} .cestate.ok{color:var(--live)}
@@ -150,8 +153,8 @@ a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
     <section class="sec">
       <h2>Display C text</h2>
-      <p class="note" id="ceNote">Change any line on Display C, see it on the wall as you type, then Save so everyone who opens this preview sees it.</p>
-      <div class="row"><button id="ceOpen" class="primary">Edit Display C text</button><span class="cestate" id="ceState"></span></div>
+      <p class="note" id="ceNote">Open the Display C page, change any line, press «حفظ», and the wall here updates for everyone who has this preview open.</p>
+      <div class="row"><button id="cvOpen" class="primary">Open Display C page</button><button id="ceOpen" hidden>Quick edit</button><span class="cestate" id="ceState"></span></div>
     </section>
 
     <section class="sec">
@@ -196,6 +199,11 @@ a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
       <p class="flag warn">Main stage conflict: deck says 7360×2340, ESL guide says 14720×4680 (exactly 2×). Preview uses 14720×4680.</p>
     </section>
   </aside>
+</div>
+
+<div class="cview" id="cview" hidden role="dialog" aria-modal="true" aria-label="Display C page">
+  <div class="cvbar"><button id="cvBack">← Back to 3D</button><span class="cestate" id="cvState"></span></div>
+  <iframe id="cvFrame" title="Display C page"></iframe>
 </div>
 
 <div class="cedit" id="cedit" hidden role="dialog" aria-modal="true" aria-labelledby="ceTitle">
@@ -832,14 +840,36 @@ const CE = (() => {
       const user = await window.claude.use('user');
       if (user) { const c = await user.can('data.write'); if (c===false) canWrite=false; }
     } catch(e) {}
-    shared = true; ref = db.doc('copy/display-c');
+    shared = true; ref = db.doc('copy/display-c'); window.__pushCopyToC && window.__pushCopyToC(); $('cvState').textContent='Saves go to everyone';
     ref.onSnapshot(snap => {
       if (snap.exists) { const d = snap.data(); const c = { top:d.top, sub:d.sub, scripts:d.scripts };
-        if (StripC.valid(c)) { saved = JSON.parse(JSON.stringify(c)); if (!dirty) { StripC.setCopy(saved); if (open) fill(saved); } } }
+        if (StripC.valid(c)) { saved = JSON.parse(JSON.stringify(c)); if (!dirty) { StripC.setCopy(saved); if (open) fill(saved); } window.__pushCopyToC && window.__pushCopyToC(); } }
       status();
     }, () => { shared=false; ref=null; status(); });
     status();
   })();
+  // ---- Display C page (its own file, framed here) talks to the shared store through this page
+  const cv=$('cview'), fr=$('cvFrame');
+  const toFrame = m => { try { fr.contentWindow && fr.contentWindow.postMessage(m,'*'); } catch(e){} };
+  const sendCopy = () => toFrame({ type:'elc-copy', copy:saved, shared, canWrite });
+  function openC(){ if (!fr.src) fr.src='display-c/index.html'; cv.hidden=false; $('cvState').textContent = shared ? 'Saves go to everyone' : 'Saves stay on this device'; try { history.replaceState(null,'','#display-c'); } catch(e){} setTimeout(()=>$('cvBack').focus(),0); }
+  function closeC(){ cv.hidden=true; try { history.replaceState(null,'',location.pathname+location.search); } catch(e){} $('cvOpen').focus(); }
+  $('cvOpen').onclick=openC; $('cvBack').onclick=closeC;
+  addEventListener('message', async e => {
+    if (!fr.contentWindow || e.source !== fr.contentWindow) return;
+    const m = e.data || {};
+    if (m.type==='elc-get') sendCopy();
+    if (m.type==='elc-save' && StripC.valid(m.copy)) {
+      try {
+        if (ref) await ref.set({ ...m.copy, savedAt: Date.now() });
+        else { try { localStorage.setItem(StripC.KEY, JSON.stringify(m.copy)); } catch(err){} try { new BroadcastChannel('elclasico-c').postMessage(m.copy); } catch(err){} }
+        saved = JSON.parse(JSON.stringify(m.copy)); dirty=false; StripC.setCopy(saved); status();
+        toFrame({ type:'elc-saved', ok:true, shared });
+      } catch(err) { toFrame({ type:'elc-saved', ok:false, code: err && err.code }); }
+    }
+  });
+  window.__pushCopyToC = sendCopy;
+  if (location.hash === '#display-c') openC();
   status();
   return { show };
 })();

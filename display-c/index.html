@@ -178,11 +178,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
     <div class="edhead">
       <div>
         <h2>نصوص الشاشة</h2>
-        <p class="sub" style="margin:0">عدّل أي سطر والشاشة تتحدّث فورًا، ومعها شاشة C في البريفيو الثري دي المفتوح على نفس الجهاز. حط الكلمة البولد بين *نجمتين*، والكشيدة تتطبّق عليها لوحدها.</p>
+        <p class="sub" style="margin:0">عدّل أي سطر وشوفه على الشاشة فوق، وبعدين اضغط «حفظ» علشان يظهر في البريفيو الثري دي. حط الكلمة البولد بين *نجمتين*، والكشيدة تتطبّق عليها لوحدها.</p>
       </div>
       <div class="edbtns">
         <span class="saved" id="saved" aria-live="polite"></span>
-        <button id="copyTxt">نسخ النصوص</button>
+        <button id="saveTxt" class="on">حفظ</button>
         <button id="resetTxt">رجوع للنص الأصلي</button>
       </div>
     </div>
@@ -619,14 +619,40 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
   PLACES.forEach((pl, i) => { const tr = document.createElement("tr"); tr.innerHTML = `<td>${pl}</td>` + [0,1,2].map(si => `<td><input id="m${si}_${i}" dir="rtl" aria-label="${pl} · الرسالة ${si+1}"></td>`).join(""); body.appendChild(tr); });
   function fill(c) { c.top.forEach((m, i) => $("top" + i).value = m); $("sub").value = c.sub; c.scripts.forEach((r, si) => r.forEach((m, i) => $(`m${si}_${i}`).value = m)); }
   function read() { return { top: [0,1,2,3].map(i => $("top" + i).value), sub: $("sub").value, scripts: [0,1,2].map(si => [0,1,2,3,4,5,6].map(i => $(`m${si}_${i}`).value)) }; }
-  let tm = null;
-  function changed() { C.applyCopy(read()); C.rebuild(); clearTimeout(tm); tm = setTimeout(() => { C.saveCopy(); $("saved").textContent = "Saved"; setTimeout(() => $("saved").textContent = "", 1500); }, 250); }
-  fill(C.currentCopy());
+  const embedded = window.parent !== window;
+  let saved = C.currentCopy(), dirty = false, saving = false, shared = false, canWrite = true;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function status(msg, cls) {
+    const el = $("saved");
+    el.textContent = msg != null ? msg : saving ? "بيحفظ…" : dirty ? "تعديلات مش محفوظة" : (embedded && shared ? "محفوظ · ظاهر للكل في الثري دي" : "محفوظ");
+    el.style.color = cls === "err" || (dirty && msg == null) ? "#ffb547" : "#35e0a8";
+    $("saveTxt").disabled = !dirty || saving || !canWrite;
+  }
+  function changed() { const c = read(); C.applyCopy(c); C.rebuild(); dirty = !same(c, saved); status(); }
+  fill(saved);
   document.querySelectorAll(".editor input").forEach(el => el.addEventListener("input", changed));
   $("resetTxt").onclick = () => { fill(C.DEFAULT); changed(); };
-  $("copyTxt").onclick = () => { const c = read(), txt = ["الشريط الفوقي:", ...c.top.map((m, i) => `- ${["CONTENT 1","CONTENT 2","CONTENT 3","CONTENT 5"][i]}: ${m}`), `- السطر الصغير: ${c.sub}`, "", ...c.scripts.map((r, si) => [`الرسالة ${si+1}:`, ...r.map((m, i) => `- ${PLACES[i]}: ${m}`)].join("\n"))].join("\n");
-    const ta = $("copyOut"); ta.value = txt; ta.hidden = false;
-    try { navigator.clipboard.writeText(txt).then(() => { $("saved").textContent = "Copied"; }, () => ta.select()); } catch (e) { ta.select(); } };
+  $("saveTxt").onclick = () => {
+    const c = read(); saving = true; status();
+    if (embedded) { parent.postMessage({ type: "elc-save", copy: c }, "*"); return; }
+    C.applyCopy(c); C.saveCopy(); saved = c; dirty = false; saving = false; status("اتحفظ على الجهاز ده");
+  };
+  addEventListener("message", e => {
+    if (!embedded || e.source !== window.parent) return;
+    const m = e.data || {};
+    if (m.type === "elc-copy" && m.copy) {
+      shared = !!m.shared; canWrite = m.canWrite !== false; saved = m.copy;
+      if (!dirty) { C.applyCopy(m.copy); C.rebuild(); fill(m.copy); }
+      status(canWrite ? null : "عرض بس · الحفظ للي عندهم صلاحية تعديل");
+    }
+    if (m.type === "elc-saved") {
+      saving = false;
+      if (m.ok) { saved = read(); dirty = false; shared = !!m.shared; status(); }
+      else status(m.code === "invalid_argument" ? "مش متاح لك تحفظ. اطلب صلاحية تعديل من صاحب اللينك." : "ما اتحفظش. اتأكد من النت واضغط «حفظ» تاني.", "err");
+    }
+  });
+  if (embedded) parent.postMessage({ type: "elc-get" }, "*");
+  status();
 })();
 </script>
 
