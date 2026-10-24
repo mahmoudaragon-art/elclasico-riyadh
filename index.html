@@ -531,7 +531,7 @@ const FFY = 4.85;   // first-floor level: the top row of Display A (content 1–
 let TARGET = null;  // where scene helpers add meshes (scene, or the first-floor group)
 
 /* ---------- Screen spec (ESL content creation guide) ---------- */
-const U_WALL = [[1495,965],[1482,700],[1470,640],[1450,620],[1110,622],[1080,648],[1068,735],[1040,760],[795,758],[765,730],[750,640],[742,595],[725,575],[600,548]];
+const U_WALL = [[1495,965],[1482,700],[1470,640],[1450,620],[1110,622],[1080,648],[1068,735],[1040,760],[795,758],[765,730],[750,640],[742,595],[725,575],[600,548],[520,548],[452,548]];
 const C_PATH = [[1495,965],[1482,700],[1470,640],[1450,620],[1110,622],[1080,648],[1068,735],[1040,760],[795,758],[765,730],[750,640],[743,602]];
 // first-floor walls that carry Display D: north → east → south, audience inside
 const D_WALL = [[566,46],[1000,46],[1030,60],[1034,100],[1034,490],[1020,528],[980,534],[600,534]];
@@ -624,6 +624,7 @@ const M = {
   rug:   new THREE.MeshStandardMaterial({ color:'#c9cdd8', roughness:1 }),
   speaker:new THREE.MeshStandardMaterial({ color:'#121317', roughness:.5 }),
   glowWarm:new THREE.MeshBasicMaterial({ color:'#ffc36b' }),
+  pitch:new THREE.MeshBasicMaterial({ color:'#050506', side:THREE.DoubleSide }),
   ffFloor:new THREE.MeshStandardMaterial({ color:'#3a3f4b', roughness:.9 }),
   stair: new THREE.MeshStandardMaterial({ color:'#4a4f5b', roughness:.9 }),
   ceiling:new THREE.MeshBasicMaterial({ color:'#ece6f7', side:THREE.DoubleSide }),
@@ -725,27 +726,34 @@ for (let i=0;i<ROWS;i++){ const x0=ROW0+ROWD*i; boxPx(x0,330,x0+ROWD,354,.02,M.d
   seats.count=si; add(seats); }
 // wall at the back of the seating, facing the activation hall
 boxPx(700,210,714,478,3.6,M.tier);
+wallAlong([Q(452,138),Q(707,210)], 3.6, .3, M.tier); wallAlong([Q(452,546),Q(707,478)], 3.6, .3, M.tier);
 // black ceiling slats fanning over the stage (video t=100, t=128)
 for (let k=-4;k<=4;k++){ const a=k*.13, p=Q(330,342), L=9; const s=new THREE.Mesh(new THREE.BoxGeometry(L,.25,.35),M.black);
   s.position.set(p.x-Math.cos(a)*L/2-1, FFY+4.0, p.z+Math.sin(a)*L/2); s.rotation.y=a; add(s); }
 
 const ff = new THREE.Group(); // first floor not modelled
 /* ---------- partitions ---------- */
-wallAlong(samplePath(PART_PATH, true), 3.4, .3, M.white);
+wallAlong(samplePath(PART_PATH.slice(0,5), true), 3.4, .3, M.white);   // east arc removed to open the bar
 wallAlong(samplePath(U_WALL, true), 3.4, .3, M.white);
 // C wall: black plinth under the LED and a white soffit ledge above it (Display C photos)
-wallAlong(offset(samplePath(C_PATH, true), .12), .85, .2, M.black);
-wallAlong(offset(samplePath(C_PATH, true), .45), .3, .7, M.white, 3.95);
+{ const S=offset(samplePath(C_PATH, true), .12), L=pathLen(S), u0=8160/20160, u1=8800/20160;
+  let acc=0; const A=[], B=[]; S.forEach((p,i)=>{ if (i) acc+=p.distanceTo(S[i-1]); const u=acc/L; if (u<=u0+.001) A.push(p); if (u>=u1-.001) B.push(p); });
+  wallAlong(A, .85, .2, M.pitch); wallAlong(B, .85, .2, M.pitch);
+  // dark doorway through the wall under the door cut-out
+  const D=[]; acc=0; S.forEach((p,i)=>{ if (i) acc+=p.distanceTo(S[i-1]); const u=acc/L; if (u>=u0-.002 && u<=u1+.002) D.push(p); });
+  const Cs=samplePath(C_PATH,true), CL=pathLen(Cs), CH=CL*1440/20160; wallAlong(offset(D,-.1), .85+CH*(1080/1440), .12, M.pitch); }
 // orange arch bar (video t=58): curved orange alcove, copper counter, stools
 { const BAR=samplePath([[1522,232],[1528,300],[1520,370],[1495,428],[1458,470]], true, .25);
-  wallAlong(BAR, 3.3, .3, M.barGlow);                                  // lit back wall with bottle shelves
-  [1.35,1.85,2.35].forEach(h=>wallAlong(offset(BAR,.2), .05, .25, M.black, h));
-  wallAlong(offset(BAR,-.05), .7, .6, M.white, 3.3);                   // white arch head over the alcove
-  wallAlong(offset(BAR,1.3), 1.1, .55, M.copper);                      // copper counter
-  wallAlong(offset(BAR,1.3), .05, .7, M.terrazzo, 1.1);
-  const ST=offset(BAR,2.05); for (let k=2;k<ST.length-1;k+=Math.max(1,Math.floor(ST.length/6))){ const p=ST[k];
+  const N=normals(BAR), n=BAR.length-1, at=(d,b=0)=>BAR.map((p,i)=>p.clone().addScaledVector(N[i], d + b*Math.sin(Math.PI*i/n)));
+  const BACK=at(1.5,1.4);                                               // leaf: back wall bows away from the counter
+  wallAlong(BACK, 3.3, .3, M.barGlow);                                  // lit back wall with bottle shelves
+  [1.35,1.85,2.35].forEach(h=>wallAlong(at(1.3,1.4), .05, .25, M.black, h));
+  wallAlong(at(1.5,1.4), .7, .6, M.white, 3.3);                         // white arch head over the alcove
+  wallAlong([BACK[0],BAR[0]], 3.3, .25, M.white); wallAlong([BACK[n],BAR[n]], 3.3, .25, M.white);   // leaf tips
+  wallAlong(BAR, 1.1, .55, M.copper);                                   // copper counter
+  wallAlong(BAR, .05, .7, M.terrazzo, 1.1);
+  const ST=at(-.75); for (let k=2;k<ST.length-1;k+=Math.max(1,Math.floor(ST.length/6))){ const p=ST[k];
     const st=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.78,14),M.black); st.position.set(p.x,.39,p.z); add(st); } }
-boxPx(1040,326,1130,462,1.1,M.dark); // F&B kiosk counter
 // red sofas by the general-entrance glass box (video t=36)
 boxPx(1580,640,1625,662,.8,M.red); boxPx(1640,640,1700,662,.8,M.red);
 
@@ -767,7 +775,7 @@ slatWall(samplePath([[1565,305],[1610,292],[1660,305],[1710,318],[1745,308]], tr
 { const p=Q(1605,250); const col=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,4.6,20),M.woodSlat); col.position.set(p.x,2.3,p.z); add(col);
   const tbl=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.75,28),M.white); tbl.position.set(p.x,.375,p.z); add(tbl); }
 // wooden arches wall with the 7 door screens and twin speakers (video t=22, Above Door photos)
-const WAVE = samplePath([[1850,262],[1842,300],[1826,350],[1820,400],[1842,450],[1850,500],[1836,560],[1830,600],[1850,660],[1862,700],[1850,760],[1856,800],[1876,860],[1892,920],[1902,948]], true, .25);
+const WAVE = samplePath([[1745,308],[1790,296],[1828,276],[1850,262],[1842,300],[1826,350],[1820,400],[1842,450],[1850,500],[1836,560],[1830,600],[1850,660],[1862,700],[1850,760],[1856,800],[1876,860],[1892,920],[1902,948]], true, .25);
 const DR_ARCHES = (() => { const L=pathLen(WAVE); return SCREENS.find(x=>x.id==='DR').at.map(([x,y])=>{ const t=Q(x,y); let best=0,bd=1e9,acc=0;
   WAVE.forEach((p,i)=>{ if (i) acc+=p.distanceTo(WAVE[i-1]); const d=p.distanceTo(t); if (d<bd){ bd=d; best=acc; } }); return [best/L, .85, 2.55]; }); })();
 slatWall(offset(WAVE, -0.18), 4.4, DR_ARCHES, true);
