@@ -180,7 +180,6 @@ a.btnlink:focus-visible{outline:2px solid #fff;outline-offset:2px}
 
     <section class="sec">
       <h2>View</h2>
-      <div class="row" id="floors" role="group" aria-label="Floors"><button data-f="all" class="on">Both floors</button><button data-f="ground">Ground only</button></div>
       <label class="tog"><input type="checkbox" id="tLabels" checked> Screen labels</label>
       <label class="tog"><input type="checkbox" id="tMap"> Pixel map (file slices)</label>
       <label class="tog"><input type="checkbox" id="tSection" checked> Section cut (low outer walls)</label>
@@ -548,12 +547,10 @@ const SCREENS = [
     note:'LEFT 5120 on the south wall, MIDDLE 4800 wraps the pitch end, RIGHT 4800 on the north wall. Cut-outs are the glass windows and openings in the renders. 12 files.' },
   { id:'MP', name:'Main arena pillars', count:2, res:[1600,2520], maxDim:1300, color:'#c084fc', conf:'likely', type:'stepped',
     at:[[478,192],[478,488]], face:[[560,342],[560,342]], mode:'brand', note:'The two columns at the front corners of the seating. 1600×1440 drum wraps the column; the 640×1080 crown faces the seats.' },
-  { id:'PB', name:'Pillars B', count:8, res:[1920,1260], maxDim:1100, color:'#a3e635', conf:'likely', type:'cyl', base:0.75,
-    at:[[1630,490],[1625,775],[1300,560],[765,200],[765,480],[600,165,FFY],[600,420,FFY],[860,300,FFY]],
-    face:[[1500,580],[1626,960],[1200,600],[880,330],[880,360],[700,300],[700,300],[700,320]], mode:'brand',
-    note:'@1 and @2 by the door screens and the entrance, @3 by the turnstiles, @4 and @5 in the activation hall, @6 to @8 on the first floor (photos and walkthrough).' },
-  { id:'PB1', name:'Pillar B1 · First floor', res:[960,1260], maxDim:700, face:[[800,260]], color:'#84cc16', conf:'likely', type:'cyl', base:0.75, at:[[960,200,FFY]], mode:'brand',
-    note:'Smaller wrap on the first floor (photo Pillar B1 - FF).' },
+  { id:'PB', name:'Pillars B', count:4, res:[1920,1260], maxDim:1100, color:'#a3e635', conf:'likely', type:'cyl', base:0.75,
+    at:[[1630,490],[1625,775],[765,200],[765,480]],
+    face:[[1500,580],[1626,960],[880,330],[880,360]], mode:'brand',
+    note:'Ground-floor pillars: two in the lounge by the door screens and the entrance, two in the activation hall.' },
   { id:'DR', name:'Displays above door', count:7, res:[640,360], color:'#f472b6', conf:'likely', type:'plane', yaw:-90, base:2.75,
     at:[[1820,290],[1810,395],[1830,495],[1816,590],[1840,690],[1838,780],[1860,865]], mode:'brand',
     note:'The seven small screens inside the arches of the wooden lounge wall.' },
@@ -561,13 +558,8 @@ const SCREENS = [
     path:C_PATH, base:0.85, off:0.2,
     cuts:[[8160,360,640,1080]], slices:{cols:[3840,3840,3840,3840,3840,960], rows:[1440]}, mode:'omar',
     note:'Starts at the general entrance on your left (px 0 = CONTENT 1) and runs along the U-wall into the venue. The three ESL curves land on the three corners of the wall. Content: Omar’s draft 7, the walking chat messages, white over the team’s navy background.' },
-  { id:'D', name:'Display D · First floor', res:[25920,1620], color:'#22d3ee', conf:'likely', type:'ribbon', smooth:true, ff:true,
-    path:D_PATH, base:FFY+.45, off:0, textBand:[0,720/1620],
-    cuts:[[0,720,2080,900],[4640,720,7520,900],[14080,720,11360,900]],
-    slices:{cols:[3840,3840,3840,3840,3840,3840,2880], rows:[1620]}, mode:'brand',
-    note:'First-floor gaming area (photos Display D … FF). A 720 px band over the glass rooms with three 1620 px drops; content 1 is the full-height red section behind the bar. Wall run estimated, no first-floor plan.' },
   { id:'B', name:'Display B · VIP entrance', res:[2560,1440], color:'#3d4bff', conf:'likely', type:'ribbon', smooth:true,
-    path:[[1628,62],[1664,52],[1702,49],[1740,52],[1776,62]], base:.95, off:0, mode:'brand',
+    path:[[1896,100],[1884,152],[1858,202],[1820,240],[1772,262]], base:.95, off:0, mode:'brand',
     note:'Curved screen facing the VIP entrance, round counter in front (video at 0:01, Display B photo).' },
   { id:'OA', name:'Outdoor side A', res:[840,504], color:'#e879f9', conf:'likely', type:'plane', yaw:0, base:0.6, den:DEN_OUT, at:[[1550,992]], mode:'brand',
     note:'Façade, left of the general-entrance door. From the deck only.' },
@@ -623,6 +615,7 @@ const M = {
   seatRed:new THREE.MeshStandardMaterial({ color:'#3a1d22', roughness:.7 }),
   red:   new THREE.MeshStandardMaterial({ color:'#b5222d', roughness:.6 }),
   orange:new THREE.MeshStandardMaterial({ color:'#e08a2a', roughness:.5, side:THREE.DoubleSide }),
+  barGlow:new THREE.MeshBasicMaterial({ color:'#f2a531', side:THREE.DoubleSide }),
   orangeSeat:new THREE.MeshStandardMaterial({ color:'#d9732b', roughness:.7 }),
   copper:new THREE.MeshStandardMaterial({ color:'#a5623f', roughness:.4, metalness:.4, side:THREE.DoubleSide }),
   terrazzo:new THREE.MeshStandardMaterial({ color:'#d9d6d0', roughness:.6, side:THREE.DoubleSide }),
@@ -730,38 +723,13 @@ for (let i=0;i<ROWS;i++){ const x0=ROW0+ROWD*i; boxPx(x0,330,x0+ROWD,354,.02,M.d
   for (let i=0;i<ROWS;i++){ const px=ROW0+ROWD*i+12, top=RISE*(i+1);
     for (let py=246; py<=440; py+=15){ if (py>322 && py<362) continue; const p=Q(px,py); MX.makeTranslation(p.x,top+.4,p.z); seats.setMatrixAt(si++,MX); } }
   seats.count=si; add(seats); }
+// wall at the back of the seating, facing the activation hall
+boxPx(700,210,714,478,3.6,M.tier);
 // black ceiling slats fanning over the stage (video t=100, t=128)
 for (let k=-4;k<=4;k++){ const a=k*.13, p=Q(330,342), L=9; const s=new THREE.Mesh(new THREE.BoxGeometry(L,.25,.35),M.black);
   s.position.set(p.x-Math.cos(a)*L/2-1, FFY+4.0, p.z+Math.sin(a)*L/2); s.rotation.y=a; add(s); }
 
-/* ---------- FIRST FLOOR (gaming): slab over the activation zone and the back of the arena, balcony to A, Display D on its walls ---------- */
-const ff = new THREE.Group(); ff.name='firstFloor'; scene.add(ff);
-TARGET = ff;
-// slab with a stairwell along the east partition
-boxPx(560,40,995,540,.35,M.ffFloor,FFY-.35);
-boxPx(995,40,1040,150,.35,M.ffFloor,FFY-.35);
-boxPx(995,425,1040,540,.35,M.ffFloor,FFY-.35);
-// balcony glass toward the arena (with a slim rail) + stairwell guard
-wallAlong([Q(562,40),Q(562,540)], 1.1, .05, M.glass, FFY);
-boxPx(560,40,566,540,.06,M.white,FFY+1.1);
-wallAlong([Q(995,150),Q(995,425)], 1.1, .05, M.glass, FFY);
-// first-floor walls that carry Display D (north, east, south)
-wallAlong(samplePath(D_WALL,false), 4.25, .3, M.dark, FFY);
-// red balcony sofas (video t=118, t=128)
-[[200,250],[300,390],[400,480]].forEach(([y0,y1])=>boxPx(574,y0+0,596,y1,.75,M.red,FFY));
-// gaming desks with chairs (Display A FF, Display D photos)
-{ const desks=new THREE.InstancedMesh(new THREE.BoxGeometry(1.4,.74,.7), M.black, 80), chairs=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1.0,.5), M.seat, 80), mons=new THREE.InstancedMesh(new THREE.BoxGeometry(.08,.4,.6), M.speaker, 80);
-  let n=0; const MX=new THREE.Matrix4();
-  for (const x of [660,740,820,900]) for (const y of [110,170,230,300,360,420,480]){ const p=Q(x,y); MX.makeTranslation(p.x,FFY+.37,p.z); desks.setMatrixAt(n,MX); MX.makeTranslation(p.x+.8,FFY+.5,p.z); chairs.setMatrixAt(n,MX); MX.makeTranslation(p.x-.4,FFY+.95,p.z); mons.setMatrixAt(n,MX); n++; }
-  desks.count=chairs.count=mons.count=n; add(desks); add(chairs); add(mons); }
-// FF bar counter in front of the red D section (Display D C1 photo)
-boxPx(585,60,640,90,1.1,M.terrazzo,FFY);
-TARGET = scene;
-
-// stair from the activation zone up to the first floor (26 risers, runs north)
-{ const N=26, rise=FFY/N, y0=425, run=(425-150)/N;
-  for (let k=0;k<N;k++) boxPx(998, y0-(k+1)*run, 1036, y0-k*run, rise*(k+1), M.stair); }
-
+const ff = new THREE.Group(); // first floor not modelled
 /* ---------- partitions ---------- */
 wallAlong(samplePath(PART_PATH, true), 3.4, .3, M.white);
 wallAlong(samplePath(U_WALL, true), 3.4, .3, M.white);
@@ -769,9 +737,14 @@ wallAlong(samplePath(U_WALL, true), 3.4, .3, M.white);
 wallAlong(offset(samplePath(C_PATH, true), .12), .85, .2, M.black);
 wallAlong(offset(samplePath(C_PATH, true), .45), .3, .7, M.white, 3.95);
 // orange arch bar (video t=58): curved orange alcove, copper counter, stools
-wallAlong(samplePath([[1428,518],[1452,468],[1500,420],[1556,384]], true), 3.6, .45, M.orange);
-wallAlong(offset(samplePath([[1440,512],[1462,470],[1505,428],[1556,398]], true), 0), 1.1, .5, M.copper);
-[[1462,500],[1480,470],[1505,448],[1530,428]].forEach(([x,y])=>cylPx(x,y,.2,.8,M.black));
+{ const BAR=samplePath([[1448,540],[1476,488],[1522,446],[1578,414]], true, .25);
+  wallAlong(BAR, 3.3, .3, M.barGlow);                                  // lit back wall with bottle shelves
+  [1.35,1.85,2.35].forEach(h=>wallAlong(offset(BAR,.2), .05, .25, M.black, h));
+  wallAlong(offset(BAR,-.05), .7, .6, M.white, 3.3);                   // white arch head over the alcove
+  wallAlong(offset(BAR,1.3), 1.1, .55, M.copper);                      // copper counter
+  wallAlong(offset(BAR,1.3), .05, .7, M.terrazzo, 1.1);
+  const ST=offset(BAR,2.05); for (let k=2;k<ST.length-1;k+=Math.max(1,Math.floor(ST.length/6))){ const p=ST[k];
+    const st=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.78,14),M.black); st.position.set(p.x,.39,p.z); add(st); } }
 wallAlong(samplePath([[545,556],[545,770],[745,770]], false), 3.4, .3, M.dark);                         // dark pocket room
 cylPx(630,675,1.55,3.4,M.black);
 boxPx(1040,326,1130,462,1.1,M.dark); // F&B kiosk counter
@@ -790,49 +763,40 @@ boxPx(1560,40,1905,300,.02,M.woodFloor,.0);
 { const p=Q(1610,150); const d=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,1.05,28,1,true,Math.PI*.6,Math.PI*.9),M.black); d.position.set(p.x,.53,p.z); add(d);
   const glow=new THREE.Mesh(new THREE.TorusGeometry(1.4,.03,6,28,Math.PI*.9),M.glowWarm); glow.rotation.x=Math.PI/2; glow.rotation.z=Math.PI*.6; glow.position.set(p.x,.06,p.z); add(glow); }
 // round counter in front of Display B (Display B photo) + white lounge chairs
-{ const p=Q(1700,120); const c=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,.95,32),M.black); c.position.set(p.x,.48,p.z); add(c);
+{ const p=Q(1795,175); const c=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,.95,32),M.black); c.position.set(p.x,.48,p.z); add(c);
   const t=new THREE.Mesh(new THREE.TorusGeometry(1.05,.04,6,32),M.glowWarm); t.rotation.x=Math.PI/2; t.position.set(p.x,.97,p.z); add(t); }
-[[1660,200],[1700,215],[1745,200],[1640,240],[1770,240]].forEach(([x,y])=>{ const p=Q(x,y); const c=new THREE.Mesh(new THREE.BoxGeometry(.75,.8,.75),M.white); c.position.set(p.x,.4,p.z); add(c); });
-cylPx(1700,240,.35,.72,M.black);
+[[1700,150],[1715,205],[1735,245],[1680,110],[1660,200]].forEach(([x,y])=>{ const p=Q(x,y); const c=new THREE.Mesh(new THREE.BoxGeometry(.75,.8,.75),M.white); c.position.set(p.x,.4,p.z); add(c); });
+cylPx(1700,185,.35,.72,M.black);
 // slatted wood partition between VIP and lounge, with an arch opening (video t=8, t=14)
-slatWall(samplePath([[1565,305],[1610,292],[1660,305],[1710,318],[1760,300],[1805,290]], true, .2), 3.6, [[.42,1.0,2.7]]);
+slatWall(samplePath([[1565,305],[1610,292],[1660,305],[1710,318],[1745,308]], true, .2), 3.6, [[.5,1.0,2.7]]);
 // wood-slat column with a round white table at its base (video t=8)
 { const p=Q(1605,250); const col=new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,4.6,20),M.woodSlat); col.position.set(p.x,2.3,p.z); add(col);
   const tbl=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,.75,28),M.white); tbl.position.set(p.x,.375,p.z); add(tbl); }
 // wooden arches wall with the 7 door screens and twin speakers (video t=22, Above Door photos)
-const WAVE = samplePath([[1812,215],[1838,262],[1842,300],[1826,350],[1820,400],[1842,450],[1850,500],[1836,560],[1830,600],[1850,660],[1862,700],[1850,760],[1856,800],[1876,860],[1892,920],[1902,948]], true, .25);
+const WAVE = samplePath([[1850,262],[1842,300],[1826,350],[1820,400],[1842,450],[1850,500],[1836,560],[1830,600],[1850,660],[1862,700],[1850,760],[1856,800],[1876,860],[1892,920],[1902,948]], true, .25);
 const DR_ARCHES = (() => { const L=pathLen(WAVE); return SCREENS.find(x=>x.id==='DR').at.map(([x,y])=>{ const t=Q(x,y); let best=0,bd=1e9,acc=0;
   WAVE.forEach((p,i)=>{ if (i) acc+=p.distanceTo(WAVE[i-1]); const d=p.distanceTo(t); if (d<bd){ bd=d; best=acc; } }); return [best/L, .85, 2.55]; }); })();
 slatWall(offset(WAVE, -0.18), 4.4, DR_ARCHES, true);
 // lounge tables, orange chairs, planters
 const ltab=[[1610,455],[1675,465],[1640,540],[1580,610],[1655,620],[1725,345],[1782,335],[1772,520],[1782,655],[1700,700],[1600,350]];
 ltab.forEach(([x,y])=>{ cylPx(x,y,.45,.75,M.black); const p=Q(x,y); [[.75,0],[-.75,0],[0,.75],[0,-.75]].forEach(([dx,dz])=>{ const c=new THREE.Mesh(new THREE.BoxGeometry(.55,.8,.55),M.orangeSeat); c.position.set(p.x+dx,.4,p.z+dz); add(c); }); });
-[[1765,265],[1760,445],[1760,585],[1760,745]].forEach(([x,y])=>{ cylPx(x,y,.95,.5,M.white); const p=Q(x,y); const pl=new THREE.Mesh(new THREE.ConeGeometry(.6,1.5,8),new THREE.MeshStandardMaterial({color:'#2f6b33'})); pl.position.set(p.x,1.25,p.z); add(pl); });
+[[1760,445],[1760,585],[1760,745]].forEach(([x,y])=>{ cylPx(x,y,.95,.5,M.white); const p=Q(x,y); const pl=new THREE.Mesh(new THREE.ConeGeometry(.6,1.5,8),new THREE.MeshStandardMaterial({color:'#2f6b33'})); pl.position.set(p.x,1.25,p.z); add(pl); });
 // glass box near general entrance + reception
 wallAlong(samplePath([[1565,680],[1690,680],[1690,850],[1565,850],[1565,680]], false), 3.2, .08, M.glass);
 boxPx(1565,676,1690,684,.15,M.black,3.2); boxPx(1565,846,1690,854,.15,M.black,3.2);
 boxPx(1586,866,1676,880,1.05,M.white);
 
 /* ---------- activation zone furniture (under the first floor) ---------- */
-(() => { const a=Q(922,58), b=Q(1015,150); const w=b.x-a.x, d=b.z-a.z, cx=(a.x+b.x)/2, cz=(a.z+b.z)/2;
-  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{ const post=new THREE.Mesh(new THREE.BoxGeometry(.12,2.6,.12),M.blue); post.position.set(cx+sx*w/2,1.3,cz+sz*d/2); add(post); });
-  const roof=new THREE.Mesh(new THREE.BoxGeometry(w,.1,d),M.blue); roof.position.set(cx,2.6,cz); add(roof); })();
-boxPx(862,52,888,78,2.25,M.purple);        // claw machine
-boxPx(790,58,840,74,2.2,M.blue);           // AI photo booth
-boxPx(900,232,962,248,2.6,M.purple);       // STC booth back wall
-boxPx(913,288,953,320,1.05,M.teal);        // STC booth counter
 [[775,597],[855,597],[940,597],[1025,597],[780,655],[855,655],[940,655],[1025,655],[825,707],[910,707],[995,707]].forEach(([x,y])=>cylPx(x,y,.35,1.05,M.black));
-// turnstiles + entrance arch
+// turnstiles
 [505,530,556,582].forEach(y=>boxPx(1228,y-2,1250,y+2,1,M.white));
-(() => { const a=Q(1478,512), b=Q(1478,616); [a,b].forEach(p=>{ const l=new THREE.Mesh(new THREE.BoxGeometry(.45,3.4,.45),M.blue); l.position.set(p.x,1.7,p.z); add(l); });
-  const top=new THREE.Mesh(new THREE.BoxGeometry(.45,.9,a.distanceTo(b)+.9),M.purple); top.position.set(a.x,3.6,(a.z+b.z)/2); add(top); })();
 
 /* ---------- ceilings (shown while walking) ---------- */
 const ceil = new THREE.Group(); ceil.visible=false; scene.add(ceil);
 { const shape=new THREE.Shape([[48,38],[1915,38],[1915,965],[48,965]].map(([x,y])=>{const p=Q(x,y); return new THREE.Vector2(p.x,p.z);}));
   const hole=new THREE.Path([[110,80],[560,80],[560,610],[110,610]].map(([x,y])=>{const p=Q(x,y); return new THREE.Vector2(p.x,p.z);})); shape.holes.push(hole);
   const g=new THREE.ShapeGeometry(shape); g.rotateX(Math.PI/2); const m=new THREE.Mesh(g,M.ceiling); m.position.y=4.6; m.userData.mini=true; ceil.add(m);
-  const s2=new THREE.Shape([[48,38],[1040,38],[1040,610],[48,610]].map(([x,y])=>{const p=Q(x,y); return new THREE.Vector2(p.x,p.z);}));
+  const s2=new THREE.Shape([[110,80],[560,80],[560,610],[110,610]].map(([x,y])=>{const p=Q(x,y); return new THREE.Vector2(p.x,p.z);}));
   const g2=new THREE.ShapeGeometry(s2); g2.rotateX(Math.PI/2); const m2=new THREE.Mesh(g2,M.ceiling); m2.position.y=FFY+4.25; m2.userData.mini=true; ceil.add(m2);
   // black light lines in the activation ceiling (video t=90)
   for (const y of [120,260,400]){ const a=Q(600,y), b=Q(1030,y); const l=new THREE.Mesh(new THREE.BoxGeometry(b.x-a.x,.04,.25),M.black); l.position.set((a.x+b.x)/2,4.48,a.z); l.userData.mini=true; ceil.add(l); }
@@ -1025,7 +989,7 @@ const DRAW = {
     }
     // OA, small, left of the door: greeting carousel — حيّاك / Welcome / ¡Bienvenidos!
     teamBg(ctx,w,h,t,0.18);
-    const W=[['حيّاك','rtl'],['Welcome','ltr'],['¡Bienvenidos!','ltr']], per=3.5, k=Math.floor(t/per)%3, q=(t%per)/per;
+    const W=[['حيّاك','rtl'],['Welcome','ltr'],['¡Bienvenidos!','ltr']], per=3.5, tt=Math.max(0,t)||0, k=Math.floor(tt/per)%3, q=(tt%per)/per;
     const [word,dir]=W[k], inn=backE(q/.16), out=ease3((q-.86)/.14);
     ctx.save(); ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='alphabetic'; ctx.direction=dir;
     sfit(ctx,word,w*.82,h*.34,800); const y=h*.56+(1-inn)*h*.3-out*h*.3;
@@ -1225,10 +1189,9 @@ function applyPreset(name){
 const CAMS = {
   'Overview':          [[1000,1650,42],[1000,520,0]],
   'Top plan':          [[985,506,80],[985,500,0]],
-  'Balcony → A':       [[600,342,FFY+1.7],[150,342,5.2]],
   'Stage → seats':     [[215,342,1.9],[600,342,3.2]],
-  'First floor':       [[1000,520,FFY+2.2],[650,200,FFY+1.2]],
-  'VIP · Display B':   [[1700,280,1.7],[1700,50,2.2]],
+  'Seats → A':         [[520,342,3.4],[150,342,4.2]],
+  'VIP · Display B':   [[1690,150,1.7],[1860,190,2.4]],
   'Activation':        [[1010,540,1.8],[760,170,1.8]],
   'Entrance → C':      [[1548,945,1.7],[1478,760,1.5]],
   'Corridor':          [[1430,560,1.7],[1000,560,1.8]],
@@ -1320,9 +1283,6 @@ instances.forEach(inst=>{ const d=document.createElement('div'); d.className='lb
   d.innerHTML=`<b>■</b> ${inst.s.id}${inst.s.count>1?'·'+(inst.i+1):''}${inst.s.conf==='guess'?' ?':''}`; labelsEl.appendChild(d); labelEls.push({d,inst}); });
 let showLabels=true;
 instances.forEach(x=>{ x.ff = x.s.id==='D' || !!(x.s.at && x.s.at[x.i] && x.s.at[x.i][2]===FFY); });
-function setFloors(f){ const showFF = f!=='ground'; ff.visible=showFF; instances.forEach(x=>{ if (x.ff) x.outer.visible=showFF; });
-  document.querySelectorAll('#floors button').forEach(b=>b.classList.toggle('on',b.dataset.f===f)); }
-document.querySelectorAll('#floors button').forEach(b=>b.onclick=()=>setFloors(b.dataset.f));
 $('tLabels').onchange=e=>{ showLabels=e.target.checked; labelsEl.hidden=!showLabels; };
 $('tMap').onchange=e=>{ showMap=e.target.checked; SCREENS.forEach(render); };
 $('tSection').onchange=e=>setShell(e.target.checked);
@@ -1353,10 +1313,8 @@ const SPAWNS = {
   'Lounge · door screens':      [1640,560,-90],
   'Corridor · turnstiles':      [1420,560,90],
   'Activation zone':            [900,520,30],
-  'VIP entrance · Display B':   [1700,270,0,0],
+  'VIP entrance · Display B':   [1680,150,-75,0],
   'Stage front':                [290,342,-90,0],
-  'First floor · gaming':       [800,300,90,1],
-  'First floor · balcony':      [610,342,90,1],
 };
 const spawnSel=$('spawn'); Object.keys(SPAWNS).forEach(k=>{ const o=document.createElement('option'); o.textContent=k; spawnSel.appendChild(o); });
 const ray2=new THREE.Raycaster(); const DOWN=new THREE.Vector3(0,-1,0);
