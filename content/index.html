@@ -61,7 +61,7 @@ h2{margin:0;font-size:22px;font-weight:800}
       <div class="beat"><div class="tc">From the entrance · Maksab</div><div class="cp">ودّك تصير المليونير الجاي؟</div><div class="nt">Type only, no slider. stc bank × VISA | LALIGA lockup on the left.</div></div>
       <div class="beat"><div class="tc">Debt buyout</div><div class="cp">نسدد مديونيتك حتى لو تمويلك [1,500,000 ريال]</div><div class="nt">مع تمويل سداد المديونية من STC Bank · نسبة تغيّر الحسبة · قدّم الآن عبر تطبيق STC Bank, plus terms as small bullets. The slider comes out of the door.</div></div>
       <div class="beat"><div class="tc">After the door · stc bank × VISA | LALIGA lockup + Maksab account</div><div class="cp">حساب مكسب · كل ما زاد رصيدك زادت فرصك</div><div class="nt">سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank</div></div>
-      <div class="beat"><div class="tc">Match · 14400–17600</div><div class="cp">logo | MATCH | logo · buyout</div><div class="nt">Logos 30% smaller, centred, equal gap to the match. Buyout repeats at the far right end.</div></div>
+      <div class="beat"><div class="tc">Match · 14400–17600</div><div class="cp">logo | MATCH | logo · buyout</div><div class="nt">El Clásico logos centred, equal gap to the match. Buyout repeats at the far right end.</div></div>
     </div>
   </section>
 
@@ -70,9 +70,9 @@ h2{margin:0;font-size:22px;font-weight:800}
       <div class="head"><h2>Pillars B</h2><span class="spec">1920 × 1260 · two 960 px panels · 3 × 8 s</span></div>
       <div class="screen"><canvas id="cPillar" width="1920" height="1260" aria-label="Pillar content"></canvas></div>
       <div class="beats">
-        <div class="beat"><div class="tc">0–12.5 s · Cards</div><div class="cp">[بطاقات STC Bank]</div><div class="nt">Three cards stacked; the front one turns once showing its edge, catches a light sweep, then tucks in at the back. Sliders enter from each panel's outer edge.</div></div>
+        <div class="beat"><div class="tc">0–12.5 s · Cards</div><div class="cp">[بطاقات STC Bank]</div><div class="nt">Three 3D cards stacked, with soft studio reflections; the front one turns once showing its edge, then swings clear and tucks in at the back. Sliders enter from each panel's outer edge.</div></div>
         <div class="beat"><div class="tc">12.5–19 s · Buyout</div><div class="cp">نسدد مديونيتك · [1,500,000 ريال]</div><div class="nt">Amount slider from each panel's outer edge. Full copy plus terms as small bullets.</div></div>
-        <div class="beat"><div class="tc">19–24 s</div><div class="cp">ليلة الكلاسيكو مع STC Bank</div><div class="nt">The logo, static, with a soft light sweep every 4 s.</div></div>
+        <div class="beat"><div class="tc">19–24 s</div><div class="cp">ليلة الكلاسيكو · El Clásico Night</div><div class="nt">The logo, static, with a soft light sweep every 4 s.</div></div>
       </div>
     </section>
     <section>
@@ -106,6 +106,7 @@ h2{margin:0;font-size:22px;font-weight:800}
 </div>
 
 <script>
+/*@@ELC-BEGIN — generated from src/satin.js + src/content.js by build.py; edit those, not this block */
 /* Satin background — stc bank purple, built from scratch after the reference loop.
    Soft silk folds with thin light ribbons drifting across. Procedural, so it is
    seamless in time (24 s loop) and tiles across any screen width with whole repeats. */
@@ -166,8 +167,6 @@ const SATIN = (() => {
   return { draw, LOOP };
 })();
 
-</script>
-<script>
 /* El Clásico × stc bank — screen content, draft 4.
    Canvas 2D renderers in each screen's native pixel space. Purple wave field, white type,
    the stc slider (thick white bar entering from the edge — right for Arabic, left for English —
@@ -613,6 +612,8 @@ const ELC = (() => {
 
   return { doors, DR, setBg: v => { USE_SATIN = v === 'satin'; }, setImages, pillar, displayC, displayA, displayB, outdoorA, outdoorB, PILLAR, C, A, B, OA, OB, LOOP };
 })();
+
+/*@@ELC-END*/
 </script>
 <script>
 (() => {
