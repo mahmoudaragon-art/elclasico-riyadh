@@ -58,9 +58,9 @@ h2{margin:0;font-size:22px;font-weight:800}
     <div class="head"><h2>Display C</h2><span class="spec">20160 × 1440 · door 8160–8800 · match 14400–17600</span></div>
     <div class="screen scroll"><canvas id="cC" width="5040" height="360" aria-label="Display C content"></canvas></div>
     <div class="beats">
-      <div class="beat"><div class="tc">From the entrance · Maksab</div><div class="cp">ودّك تصير المليونير الجاي؟</div><div class="nt">Type only, no slider. stc bank logo on the left.</div></div>
+      <div class="beat"><div class="tc">From the entrance · Maksab</div><div class="cp">ودّك تصير المليونير الجاي؟</div><div class="nt">Type only, no slider. stc bank × VISA | LALIGA lockup on the left.</div></div>
       <div class="beat"><div class="tc">Debt buyout</div><div class="cp">نسدد مديونيتك حتى لو تمويلك [1,500,000 ريال]</div><div class="nt">مع تمويل سداد المديونية من STC Bank · نسبة تغيّر الحسبة · قدّم الآن عبر تطبيق STC Bank, plus terms as small bullets. The slider comes out of the door.</div></div>
-      <div class="beat"><div class="tc">After the door · stc bank logo + Maksab account</div><div class="cp">حساب مكسب · كل ما زاد رصيدك زادت فرصك</div><div class="nt">سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank</div></div>
+      <div class="beat"><div class="tc">After the door · stc bank × VISA | LALIGA lockup + Maksab account</div><div class="cp">حساب مكسب · كل ما زاد رصيدك زادت فرصك</div><div class="nt">سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank</div></div>
       <div class="beat"><div class="tc">Match · 14400–17600</div><div class="cp">logo | MATCH | logo · buyout</div><div class="nt">Logos 30% smaller, centred, equal gap to the match. Buyout repeats at the far right end.</div></div>
     </div>
   </section>
@@ -99,7 +99,7 @@ h2{margin:0;font-size:22px;font-weight:800}
     <div class="head"><h2>Above-door screens</h2><span class="spec">7 × 640 × 360 (16:9) · shown at true proportions</span></div>
     <div class="screen" style="background:transparent;border:0"><canvas id="cDR" width="4720" height="360" aria-label="Above-door screens content"></canvas></div>
     <div class="beats">
-      <div class="beat"><div class="tc">18–6.6 s</div><div class="cp">ليلة الكلاسيكو · STC Bank · alternating</div><div class="nt">Static logos, one per screen, alternating door to door, with the soft light sweep.</div></div>
+      <div class="beat"><div class="tc">18–6.6 s</div><div class="cp">ليلة الكلاسيكو · STC Bank × VISA | LALIGA · alternating</div><div class="nt">Static logos, one per screen, alternating door to door, with the soft light sweep.</div></div>
       <div class="beat"><div class="tc">6.7–17.7 s</div><div class="cp">حيّاك · Welcome · ¡Bienvenidos! · repeat</div><div class="nt">One word per screen, plain type rising in, cascading door to door.</div></div>
     </div>
   </section>
@@ -336,7 +336,9 @@ const ELC = (() => {
 
   /* ---------- El Clásico logo: always there, a soft light sweep every 4 s (clipped to the logo) ---------- */
   let SWC = null;
-  function classico(ctx, cx, cy, size, t, a = 1, phase = 0) { logoFx(ctx, IMG.classico, cx, cy, size, t, a, phase); }
+  // El Clásico logo, drawn 25% smaller than the size each screen asks for
+  const CL_SCALE = .75;
+  function classico(ctx, cx, cy, size, t, a = 1, phase = 0) { logoFx(ctx, IMG.classico, cx, cy, size * CL_SCALE, t, a, phase); }
   // any logo: static, with the same soft light sweep every 4 s, clipped to the logo
   function logoFx(ctx, im, cx, cy, size, t, a = 1, phase = 0) {
     if (!ok(im) || a <= 0) return;
@@ -478,8 +480,8 @@ const ELC = (() => {
     const W = C.W, H = C.H, T = lt(t), [d0, d1] = C.DOOR, [m0, m1] = C.MATCH;
     ctx.save(); ctx.scale(w / W, h / H); waves(ctx, W, H, t);
     // 1 · Maksab (0–3840) — type only, no slider
-    // stc bank logo on the left, the copy moved right
-    logoFx(ctx, IMG.stc, 1000, 720, 1400, t, 1, -1);
+    // stc bank × VISA | LALIGA lockup on the left, the copy moved right
+    logoFx(ctx, IMG.partners, 930, 720, 1600, t, 1, -1);
     { const u = T % 12, a = beat(u, 0, 11.5), E = 3760, MW = E - 1980, L3 = 'افتح حساب مكسب · فرصة للفوز كل ساعة بجوائز تصل إلى مليون ريال';
       rise(ctx, ease(u / .6) * a, 560, 200, () => txt(ctx, 'ودّك تصير', E, 560, 200, { w: 400, align: 'right' }));
       rise(ctx, ease((u - .3) / .7) * a, 860, 260, () => txt(ctx, 'المليونير الجاي؟', E, 860, fit(ctx, 'المليونير الجاي؟', MW, 260), { align: 'right' }));
@@ -494,10 +496,10 @@ const ELC = (() => {
       buyoutC(ctx, X, MW, u, a, 1, d0, d0 - X);
       terms(ctx, TERMS, X, 1150, 52, 34, MW, ease((u - 1.8) / .6) * a); }
     // El Clásico logo: 30% smaller, vertically centred, equal gap to the match on both sides
-    const LS = 910, lw = LS, gap = 300, lL = m0 - gap - lw / 2, lR = m1 + gap + lw / 2;
+    const LS = 910, lw = LS * CL_SCALE, gap = 300, lL = m0 - gap - lw / 2, lR = m1 + gap + lw / 2;
     // 3 · Maksab account, after the bathroom door (≈10300 → left logo)
-    // stc bank logo, centred in the open stretch after the door
-    logoFx(ctx, IMG.stc, 10650, 720, 1500, t, 1, -1.5);
+    // stc bank × VISA | LALIGA lockup, centred in the open stretch after the door
+    logoFx(ctx, IMG.partners, 10700, 720, 1800, t, 1, -1.5);
     { const u = (T + 6) % 12, a = beat(u, 0, 11.5), X = lL - lw / 2 - 260, MW = X - 11700;
       rise(ctx, ease(u / .6) * a, 440, 110, () => txt(ctx, 'حساب مكسب', X, 440, 110, { w: 400, align: 'right', color: GREEN }));
       rise(ctx, ease((u - .3) / .7) * a, 720, 230, () => txt(ctx, 'كل ما زاد رصيدك', X, 720, fit(ctx, 'كل ما زاد رصيدك', MW, 230), { align: 'right' }));
@@ -598,7 +600,7 @@ const ELC = (() => {
     // El Clásico logo, static with the light sweep; fades out, then back in at the end of the loop
     const lA = T < 6.6 ? 1 - ease((T - 6) / .6) : T >= 18 ? ease((T - 18) / .7) : 0;
     // alternating logos door to door: El Clásico · stc bank · El Clásico …
-    if (lA > 0) { if (i % 2 === 0) classico(ctx, W / 2, H / 2, H * .9, t, lA, -i * .12); else logoFx(ctx, IMG.stc, W / 2, H / 2, W * .58, t, lA, -i * .12); }
+    if (lA > 0) { if (i % 2 === 0) classico(ctx, W / 2, H / 2, W * .8, t, lA, -i * .12); else logoFx(ctx, IMG.partners, W / 2, H / 2, W * .86, t, lA, -i * .12); }
     // one welcome word per screen, plain type rising in, cascading door to door
     const d = i * .15, [word] = WELCOME[i % 3], a = beat(T, 6.8 + d, 17.6 + d, .7, .6);
     if (a > 0) rise(ctx, ease((T - 6.8 - d) / .7) * a, H * .62, H * .26, () => txt(ctx, word, W / 2, H * .62, fit(ctx, word, W * .8, H * .26)));
@@ -616,7 +618,7 @@ const ELC = (() => {
 (() => {
   const $ = id => document.getElementById(id);
   const load = src => { const i = new Image(); i.src = src; return i; };
-  const imgs = { infinite: load('assets/card-infinite.png'), platinum: load('assets/card-platinum.png'), signature: load('assets/card-signature.png'), classico: load('assets/classico.png'), stc: load('assets/stc-logo.svg') };
+  const imgs = { infinite: load('assets/card-infinite.png'), platinum: load('assets/card-platinum.png'), signature: load('assets/card-signature.png'), classico: load('assets/classico.png'), stc: load('assets/stc-logo.svg'), partners: load('assets/partners.png') };
   ELC.setImages(imgs);
   let guides = false;
   const views = [['cA', (c,w,h,t)=>ELC.displayA(c,w,h,t,{guides})], ['cC', (c,w,h,t)=>ELC.displayC(c,w,h,t,{guides})], ['cPillar', ELC.pillar], ['cB', ELC.displayB], ['cOA', ELC.outdoorA], ['cOB', ELC.outdoorB], ['cDR', (c,w,h,t)=>ELC.doors(c,w,h,t,{gap:40})]]
