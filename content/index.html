@@ -61,7 +61,7 @@ h2{margin:0;font-size:22px;font-weight:800}
       <div class="beat"><div class="tc">From the entrance · Maksab</div><div class="cp">ودّك تصير المليونير الجاي؟</div><div class="nt">Type only, no slider. stc bank × VISA | LALIGA lockup on the left.</div></div>
       <div class="beat"><div class="tc">Debt buyout</div><div class="cp">نسدد مديونيتك حتى لو تمويلك [1,500,000 ريال]</div><div class="nt">مع تمويل سداد المديونية من STC Bank · نسبة تغيّر الحسبة · قدّم الآن عبر تطبيق STC Bank, plus terms as small bullets. The slider comes out of the door.</div></div>
       <div class="beat"><div class="tc">After the door · stc bank × VISA | LALIGA lockup + Maksab account</div><div class="cp">حساب مكسب · كل ما زاد رصيدك زادت فرصك</div><div class="nt">سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank</div></div>
-      <div class="beat"><div class="tc">Match · 14400–17600</div><div class="cp">logo | MATCH | logo · buyout</div><div class="nt">El Clásico logos centred, equal gap to the match. Buyout repeats at the far right end.</div></div>
+      <div class="beat"><div class="tc">Match · 14400–17600</div><div class="cp">lockup | Maksab account | logo | MATCH | logo | buyout</div><div class="nt">One equal gap between every element, the match and the screen edge; copy sizes itself to keep it.</div></div>
     </div>
   </section>
 
@@ -79,8 +79,8 @@ h2{margin:0;font-size:22px;font-weight:800}
       <div class="head"><h2>Display B · VIP</h2><span class="spec">2560 × 1440 · 3 × 8 s</span></div>
       <div class="screen"><canvas id="cB" width="1280" height="720" aria-label="Display B content"></canvas></div>
       <div class="beats">
-        <div class="beat"><div class="tc">0–8 s</div><div class="cp">ليلة الكلاسيكو مع STC Bank</div></div>
-        <div class="beat"><div class="tc">8–16 s</div><div class="cp">[حيّاك] [Welcome] → [¡Bienvenidos!]</div><div class="nt">Arabic and English together on one line, then Spanish alone.</div></div>
+        <div class="beat"><div class="tc">0–8 s</div><div class="cp">STC Bank × VISA | LALIGA · ليلة الكلاسيكو</div><div class="nt">Partner lockup above the El Clásico logo.</div></div>
+        <div class="beat"><div class="tc">8–16 s</div><div class="cp">[حيّاك] [Welcome]</div><div class="nt">Arabic and English together on one line, the whole beat. No Spanish on B.</div></div>
         <div class="beat"><div class="tc">16–24 s</div><div class="cp">أهلاً بجماهير [ريال مدريد] · [برشلونة]</div><div class="nt">Same size, same height, same bar length.</div></div>
       </div>
       <div class="head" style="margin-top:12px"><h2>Outdoor façade</h2><span class="spec">OA 840 × 504 · OB 2184 × 504</span></div>
@@ -99,7 +99,7 @@ h2{margin:0;font-size:22px;font-weight:800}
     <div class="head"><h2>Above-door screens</h2><span class="spec">7 × 640 × 360 (16:9) · shown at true proportions</span></div>
     <div class="screen" style="background:transparent;border:0"><canvas id="cDR" width="4720" height="360" aria-label="Above-door screens content"></canvas></div>
     <div class="beats">
-      <div class="beat"><div class="tc">18–6.6 s</div><div class="cp">ليلة الكلاسيكو · STC Bank × VISA | LALIGA · alternating</div><div class="nt">Static logos, one per screen, alternating door to door, with the soft light sweep.</div></div>
+      <div class="beat"><div class="tc">18–6.6 s</div><div class="cp">STC Bank · ليلة الكلاسيكو · VISA | LALIGA · repeat</div><div class="nt">Static logos, one per screen, door to door, with the soft light sweep.</div></div>
       <div class="beat"><div class="tc">6.7–17.7 s</div><div class="cp">حيّاك · Welcome · ¡Bienvenidos! · repeat</div><div class="nt">One word per screen, plain type rising in, cascading door to door.</div></div>
     </div>
   </section>
@@ -182,14 +182,56 @@ const ELC = (() => {
   const beat = (t, a, b, inD = .6, outD = .5) => (t < a || t > b) ? 0 : Math.min(ease((t - a) / inD), 1 - ease((t - (b - outD)) / outD));
   const lt = t => ((t % LOOP) + LOOP) % LOOP;
 
-  let USE_SATIN = false;
+  let USE_SATIN = false, USE_LIGHTS = false;
   const IMG = {};
   function setImages(o) { Object.assign(IMG, o); }
   const ok = im => im && im.complete && im.naturalWidth;
 
   /* ---------- background ---------- */
   function waves(ctx, W, H, t, bands, tiles) {
-    if (USE_SATIN && typeof SATIN !== 'undefined') return SATIN.draw(ctx, W, H, t, tiles);
+    if (USE_SATIN && typeof SATIN !== 'undefined') { SATIN.draw(ctx, W, H, t, tiles); if (USE_LIGHTS) stadiumLights(ctx, W, H, t); return; }
+    wavesBase(ctx, W, H, t, bands);
+    if (USE_LIGHTS) stadiumLights(ctx, W, H, t);
+  }
+  /* ---------- stadium lights from above (test — off unless USE_LIGHTS) ----------
+     After the night-stadium reference: an arched ring of small lamps across the top with soft bloom, floodlight
+     banks at the ends, and a soft wash falling into the haze below. No hard cones. The layer is built once per
+     screen size at low resolution (it is all soft light) and only breathes gently with the 24 s clock. */
+  const LCACHE = {};
+  function lightLayer(W, H) {
+    const key = W + 'x' + H; if (LCACHE[key]) return LCACHE[key];
+    const sc = Math.min(1, 1600 / Math.max(W, H)), cw = Math.max(16, Math.round(W * sc)), ch = Math.max(16, Math.round(H * sc));
+    const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+    const g = cv.getContext('2d'); g.scale(sc, sc); g.globalCompositeOperation = 'lighter';
+    const n = Math.max(1, Math.round(W / (H * 2.2))), SW = W / n, top = H * .06, sag = H * .16;
+    const ringY = x => { const u = (x % SW) / SW; return top + sag * Math.sin(Math.PI * u); };
+    const glow = (x, y, r, a, col = '225,232,255') => { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, `rgba(${col},${a})`); q.addColorStop(1, `rgba(${col},0)`); g.fillStyle = q; g.fillRect(x - r, y - r, r * 2, r * 2); };
+    for (let k = 0; k < n; k++) {
+      const x0 = k * SW;
+      // soft wash under the ring (the light falling onto the haze / pitch)
+      const wy = top + sag * 1.15, wash = g.createRadialGradient(x0 + SW / 2, wy, 0, x0 + SW / 2, wy, SW * .55);
+      wash.addColorStop(0, 'rgba(200,210,255,.16)'); wash.addColorStop(.5, 'rgba(190,195,255,.06)'); wash.addColorStop(1, 'rgba(190,195,255,0)');
+      g.save(); g.translate(x0 + SW / 2, wy); g.scale(1, .55); g.translate(-(x0 + SW / 2), -wy); g.fillStyle = wash; g.fillRect(x0, wy - SW * .6, SW, SW * 1.2); g.restore();
+      // lamps along the arch, brighter toward the middle
+      const step = H * .05;
+      for (let x = x0 + step * .7; x < x0 + SW - step * .5; x += step) {
+        const y = ringY(x), mid = Math.sin(Math.PI * ((x - x0) / SW)), a = .5 + .5 * mid;
+        glow(x, y, H * .05, .16 * a); glow(x, y, H * .018, .42 * a); glow(x, y, H * .006, .95 * a, '255,255,255');
+      }
+      // floodlight banks at the two ends of the arch
+      for (const bx of [x0 + SW * .03, x0 + SW * .97]) { glow(bx, top * .7, H * .14, .2); glow(bx, top * .7, H * .05, .45); glow(bx, top * .7, H * .02, .9, '255,255,255'); }
+    }
+    // overall glow in the air under the lights
+    const hz = g.createLinearGradient(0, 0, 0, H * .7); hz.addColorStop(0, 'rgba(190,190,255,.08)'); hz.addColorStop(.35, 'rgba(190,190,255,.05)'); hz.addColorStop(1, 'rgba(190,190,255,0)');
+    g.fillStyle = hz; g.fillRect(0, 0, W, H * .7);
+    return (LCACHE[key] = cv);
+  }
+  function stadiumLights(ctx, W, H, t) {
+    const L = lightLayer(W, H), br = .9 + .1 * Math.sin(2 * Math.PI * lt(t) / LOOP);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = br; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(L, 0, 0, W, H); ctx.restore();
+  }
+  function wavesBase(ctx, W, H, t, bands) {
     // base gradient: its axis slowly turns and the mid stop breathes
     const an = t * .11, ca = Math.cos(an), sa = Math.sin(an), R = Math.min(W, H * 2.2) * .5;
     const g = ctx.createLinearGradient(W / 2 - ca * R, H / 2 - sa * R, W / 2 + ca * R, H / 2 + sa * R);
@@ -478,37 +520,48 @@ const ELC = (() => {
   function displayC(ctx, w, h, t, opt = {}) {
     const W = C.W, H = C.H, T = lt(t), [d0, d1] = C.DOOR, [m0, m1] = C.MATCH;
     ctx.save(); ctx.scale(w / W, h / H); waves(ctx, W, H, t);
-    // 1 · Maksab (0–3840) — type only, no slider
-    // stc bank × VISA | LALIGA lockup on the left, the copy moved right
-    logoFx(ctx, IMG.partners, 930, 720, 1600, t, 1, -1);
-    { const u = T % 12, a = beat(u, 0, 11.5), E = 3760, MW = E - 1980, L3 = 'افتح حساب مكسب · فرصة للفوز كل ساعة بجوائز تصل إلى مليون ريال';
-      rise(ctx, ease(u / .6) * a, 560, 200, () => txt(ctx, 'ودّك تصير', E, 560, 200, { w: 400, align: 'right' }));
-      rise(ctx, ease((u - .3) / .7) * a, 860, 260, () => txt(ctx, 'المليونير الجاي؟', E, 860, fit(ctx, 'المليونير الجاي؟', MW, 260), { align: 'right' }));
-      rise(ctx, ease((u - 1.1) / .6) * a, 1130, 80, () => txt(ctx, L3, E, 1130, fit(ctx, L3, MW, 80, 400), { w: 400, align: 'right' })); }
+    const tw = (str, size, wt = 800) => { font(ctx, size, wt); return ctx.measureText(str).width; };
+    const lines = (arr, X, y0, size, lh, a, u, d) => arr.forEach((ln, k) => rise(ctx, ease((u - d - k * .1) / .6) * a, y0 + k * lh, size, () => txt(ctx, ln, X, y0 + k * lh, size, { w: 400, align: 'right' })));
+    // ---- 1 · from the entrance to the debt buyout: lockup | Maksab copy | buyout, three equal gaps
+    const BW = 2100, BX = 6180, BL = BX - BW;                       // buyout column (right-aligned at BX)
+    // lockup over the El Clásico logo (same column as beside the match) on the left; the copy sits closer to the buyout
+    { const LS1 = 910 * 1.2, LW = LS1 * CL_SCALE, GR = 330, L3 = 'افتح حساب مكسب · فرصة للفوز كل ساعة بجوائز تصل إلى مليون ريال';
+      let k = 1; const block = () => Math.max(tw('ودّك تصير', 200 * k, 400), tw('المليونير الجاي؟', 260 * k), ...wrapBalanced(ctx, L3, 1700 * k, 66 * k).map(l => tw(l, 66 * k, 400)));
+      const E = BL - GR; let TW = block(), g = (E - TW - LW) / 2;
+      if (g < 380) { k = (E - LW - 2 * 380) / TW; TW = block(); g = (E - TW - LW) / 2; }
+      logoFx(ctx, IMG.partners, g + LW / 2, 560, LW, t, 1, -1); classico(ctx, g + LW / 2, 860, LS1, t, 1, -1.3);
+      const u = T % 12, a = beat(u, 0, 11.5), l3 = wrapBalanced(ctx, L3, 1700 * k, 66 * k);
+      rise(ctx, ease(u / .6) * a, 520, 200 * k, () => txt(ctx, 'ودّك تصير', E, 520, 200 * k, { w: 400, align: 'right' }));
+      rise(ctx, ease((u - .3) / .7) * a, 820, 260 * k, () => txt(ctx, 'المليونير الجاي؟', E, 820, 260 * k, { align: 'right' }));
+      lines(l3, E, 1060, 66 * k, 92 * k, a, u, 1.1); }
     // fade to black into the door, back out after it
     { const inA = 6400, outB = 9850;
       let g = ctx.createLinearGradient(inA, 0, d0, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); ctx.fillStyle = g; ctx.fillRect(inA, 0, d0 - inA, H);
       ctx.fillStyle = '#000'; ctx.fillRect(d0, 0, d1 - d0, H);
       g = ctx.createLinearGradient(d1, 0, outB, 0); g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(d1, 0, outB - d1, H); }
-    // 2 · debt buyout (3840–6400) — its slider comes out of the door, drawn over the fade
-    { const u = (T + 3) % 12, a = beat(u, 0, 11.5), X = 6180, MW = 2350;
-      buyoutC(ctx, X, MW, u, a, 1, d0, d0 - X);
-      terms(ctx, TERMS, X, 1150, 52, 34, MW, ease((u - 1.8) / .6) * a); }
-    // El Clásico logo: 30% smaller, vertically centred, equal gap to the match on both sides
-    const LS = 910, lw = LS * CL_SCALE, gap = 300, lL = m0 - gap - lw / 2, lR = m1 + gap + lw / 2;
-    // 3 · Maksab account, after the bathroom door (≈10300 → left logo)
-    // stc bank × VISA | LALIGA lockup, centred in the open stretch after the door
-    logoFx(ctx, IMG.partners, 10700, 720, 1800, t, 1, -1.5);
-    { const u = (T + 6) % 12, a = beat(u, 0, 11.5), X = lL - lw / 2 - 260, MW = X - 11700;
-      rise(ctx, ease(u / .6) * a, 440, 110, () => txt(ctx, 'حساب مكسب', X, 440, 110, { w: 400, align: 'right', color: GREEN }));
-      rise(ctx, ease((u - .3) / .7) * a, 720, 230, () => txt(ctx, 'كل ما زاد رصيدك', X, 720, fit(ctx, 'كل ما زاد رصيدك', MW, 230), { align: 'right' }));
-      rise(ctx, ease((u - .6) / .7) * a, 940, 190, () => txt(ctx, 'زادت فرصك', X, 940, fit(ctx, 'زادت فرصك', MW, 190), { align: 'right' }));
-      rise(ctx, ease((u - 1.2) / .6) * a, 1160, 70, () => txt(ctx, 'سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank', X, 1160, fit(ctx, 'سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank', MW, 70, 400), { w: 400, align: 'right' })); }
-    classico(ctx, lL, H / 2, LS, t);
-    classico(ctx, lR, H / 2, LS, t, 1, -.5);
-    // 4 · debt buyout again at the far right end — its slider enters from the screen's right edge
-    { const u = (T + 9) % 12, a = beat(u, 0, 11.5), X = W - 90, MW = X - (lR + lw / 2 + 140);
-      buyoutC(ctx, X, MW, u, a, .62, W, 90); }
+    // ---- 2 · debt buyout — its slider comes out of the door, drawn over the fade
+    { const u = (T + 3) % 12, a = beat(u, 0, 11.5);
+      buyoutC(ctx, BX, BW, u, a, 1, d0, d0 - BX);
+      terms(ctx, TERMS, BX, 1150, 52, 34, BW, ease((u - 1.8) / .6) * a); }
+    // ---- 3 · after the door up to the match: Maksab account | [lockup over El Clásico logo] | MATCH
+    //      the logo columns sit close to the match (GM); the other gaps are equal (g), and the same g repeats on the
+    //      right: MATCH | column | buyout | screen edge
+    const LS = 910 * 1.2, lw = LS * CL_SCALE, GM = 170, S0 = 9700;
+    const column = (cx, ph) => { logoFx(ctx, IMG.partners, cx, 560, lw, t, 1, ph); classico(ctx, cx, 860, LS, t, 1, ph - .3); };
+    const L4 = 'سحوبات كل ساعة · افتح حسابك عبر تطبيق STC Bank';
+    let k3 = 1; const block3 = () => Math.max(tw('حساب مكسب', 120 * k3, 400), tw('كل ما زاد رصيدك', 250 * k3), tw('زادت فرصك', 210 * k3), ...wrapBalanced(ctx, L4, 1700 * k3, 66 * k3).map(l => tw(l, 66 * k3, 400)));
+    let TW3 = block3(), g = (m0 - GM - lw - S0 - TW3) / 2;
+    if (g < 420) { k3 = (m0 - GM - lw - S0 - 2 * 420) / TW3; TW3 = block3(); g = (m0 - GM - lw - S0 - TW3) / 2; }
+    const lL = m0 - GM - lw / 2, lR = m1 + GM + lw / 2;
+    { const u = (T + 6) % 12, a = beat(u, 0, 11.5), X = lL - lw / 2 - g, l4 = wrapBalanced(ctx, L4, 1700 * k3, 66 * k3);
+      rise(ctx, ease(u / .6) * a, 380, 120 * k3, () => txt(ctx, 'حساب مكسب', X, 380, 120 * k3, { w: 400, align: 'right', color: GREEN }));
+      rise(ctx, ease((u - .3) / .7) * a, 680, 250 * k3, () => txt(ctx, 'كل ما زاد رصيدك', X, 680, 250 * k3, { align: 'right' }));
+      rise(ctx, ease((u - .6) / .7) * a, 910, 210 * k3, () => txt(ctx, 'زادت فرصك', X, 910, 210 * k3, { align: 'right' }));
+      lines(l4, X, 1120, 66 * k3, 90 * k3, a, u, 1.2); }
+    column(lL, 0); column(lR, -.5);
+    // ---- 4 · debt buyout again at the far right end — equal gap to the logo column and to the screen edge
+    { const u = (T + 9) % 12, a = beat(u, 0, 11.5), gR = (W - (lR + lw / 2) - 1150) / 2, X = W - gR, MW = 1150;
+      buyoutC(ctx, X, MW, u, a, .62, W, gR); }
     // match window (14400–17600), feathered both sides
     { const f = C.FEATHER;
       ctx.fillStyle = '#000'; ctx.fillRect(m0 + f, 0, m1 - m0 - 2 * f, H);
@@ -541,8 +594,8 @@ const ELC = (() => {
   const A = { W: 14720, H: 4680, MATCH: [5120, 9920] };
   function displayA(ctx, w, h, t, opt = {}) {
     const W = A.W, H = A.H; ctx.save(); ctx.scale(w / W, h / H); waves(ctx, W, H, t, [[.9, .03, .8], [.95, .02, .5]]);
-    classico(ctx, 2560, 2400, 2200, t);
-    classico(ctx, 12320, 2400, 2200, t, 1, -.5);
+    // stc bank × VISA | LALIGA lockup above each El Clásico logo; the logo sits lower
+    for (const [x, ph] of [[2560, 0], [12320, -.5]]) { logoFx(ctx, IMG.partners, x, 2050, 2200 * CL_SCALE, t, 1, ph); classico(ctx, x, 2720, 2200, t, 1, ph - .3); }
     const [m0, m1] = A.MATCH, f = 500, mh = (m1 - m0) * 9 / 16, my = 2160 - mh / 2;
     ctx.fillStyle = '#000'; ctx.fillRect(m0 + f, 0, m1 - m0 - 2 * f, 4320);
     let g = ctx.createLinearGradient(m0, 0, m0 + f, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); ctx.fillStyle = g; ctx.fillRect(m0, 0, f, 4320);
@@ -560,13 +613,14 @@ const ELC = (() => {
   function displayB(ctx, w, h, t) {
     const W = B.W, H = B.H, T = lt(t), cx = W / 2;
     ctx.save(); ctx.scale(w / W, h / H); waves(ctx, W, H, t);
-    { const a = beat(T, 0, 8, .6, .6); if (a > 0) classico(ctx, cx, H * .5, H * .68, t, a); }
+    // stc bank × VISA | LALIGA lockup above the El Clásico logo
+    { const a = beat(T, 0, 8, .6, .6); if (a > 0) { logoFx(ctx, IMG.partners, cx, H * .3, W * .5, t, a, -.3); classico(ctx, cx, H * .64, H * .9, t, a); } }
     // welcome: Saudi + English together on one line, then Spanish alone
     { const a = beat(T, 8, 16, .2, .4); if (a > 0) { const u = T - 8;
-        if (u < 4.2) { const sz = H * .12;
-          slider(ctx, { text: 'حيّاك', edge: W, y: H * .5, size: sz, p: u / .9, out: (u - 3.4) / .7 });
-          slider(ctx, { text: 'Welcome', edge: 0, y: H * .5, size: sz, p: (u - .15) / .9, out: (u - 3.4) / .7 }); }
-        else { const q = u - 4.2; slider(ctx, { text: '¡Bienvenidos!', edge: 0, y: H * .5, size: H * .14, p: q / .9, out: (q - 3.1) / .65 }); } } }
+        // Saudi + English together on one line for the whole beat (no Spanish on B)
+        const sz = H * .13;
+        slider(ctx, { text: 'حيّاك', edge: W, y: H * .5, size: sz, p: u / .9, out: (u - 7.1) / .8 });
+        slider(ctx, { text: 'Welcome', edge: 0, y: H * .5, size: sz, p: (u - .15) / .9, out: (u - 7.1) / .8 }); } }
     // both sets of fans — same size, same height, same bar length
     { const a = beat(T, 16, 24, .3, .5); if (a > 0) { const u = T - 16; let sz = H * .12, L = 0;
         for (let i = 0; i < 6; i++) { L = Math.max(sliderFull(ctx, 'ريال مدريد', sz), sliderFull(ctx, 'برشلونة', sz)); if (2 * (L + sz * 1.42) <= W * .86) break; sz *= .92; }
@@ -598,8 +652,11 @@ const ELC = (() => {
     waves(ctx, W, H, t, [[.85, .05, .7]]);
     // El Clásico logo, static with the light sweep; fades out, then back in at the end of the loop
     const lA = T < 6.6 ? 1 - ease((T - 6) / .6) : T >= 18 ? ease((T - 18) / .7) : 0;
-    // alternating logos door to door: El Clásico · stc bank · El Clásico …
-    if (lA > 0) { if (i % 2 === 0) classico(ctx, W / 2, H / 2, W * .8, t, lA, -i * .12); else logoFx(ctx, IMG.partners, W / 2, H / 2, W * .86, t, lA, -i * .12); }
+    // logos door to door: stc bank · El Clásico · VISA | LALIGA · repeat
+    if (lA > 0) { const m = i % 3;   // stc bank · El Clásico · VISA | LALIGA · repeat → stc bank on screens 1, 4, 7
+      if (m === 0) logoFx(ctx, IMG.stc, W / 2, H / 2, W * .6, t, lA, -i * .12);
+      else if (m === 1) classico(ctx, W / 2, H / 2, W * .8, t, lA, -i * .12);
+      else logoFx(ctx, IMG['visa-laliga'], W / 2, H / 2, W * .64, t, lA, -i * .12); }
     // one welcome word per screen, plain type rising in, cascading door to door
     const d = i * .15, [word] = WELCOME[i % 3], a = beat(T, 6.8 + d, 17.6 + d, .7, .6);
     if (a > 0) rise(ctx, ease((T - 6.8 - d) / .7) * a, H * .62, H * .26, () => txt(ctx, word, W / 2, H * .62, fit(ctx, word, W * .8, H * .26)));
@@ -610,7 +667,7 @@ const ELC = (() => {
       ctx.scale(pw / DR.W, h / DR.H); doorPanel(ctx, i, t); ctx.restore(); }
   }
 
-  return { doors, DR, setBg: v => { USE_SATIN = v === 'satin'; }, setImages, pillar, displayC, displayA, displayB, outdoorA, outdoorB, PILLAR, C, A, B, OA, OB, LOOP };
+  return { doors, DR, setLights: v => { USE_LIGHTS = !!v; }, bg: (ctx, W, H, t) => waves(ctx, W, H, t), setBg: v => { USE_SATIN = v === 'satin'; }, setImages, pillar, displayC, displayA, displayB, outdoorA, outdoorB, PILLAR, C, A, B, OA, OB, LOOP };
 })();
 
 /*@@ELC-END*/
@@ -619,7 +676,7 @@ const ELC = (() => {
 (() => {
   const $ = id => document.getElementById(id);
   const load = src => { const i = new Image(); i.src = src; return i; };
-  const imgs = { infinite: load('assets/card-infinite.png'), platinum: load('assets/card-platinum.png'), signature: load('assets/card-signature.png'), classico: load('assets/classico.png'), stc: load('assets/stc-logo.svg'), partners: load('assets/partners.png') };
+  const imgs = { infinite: load('assets/card-infinite.png'), platinum: load('assets/card-platinum.png'), signature: load('assets/card-signature.png'), classico: load('assets/classico.png'), stc: load('assets/stc-logo.svg'), partners: load('assets/partners.png'), 'visa-laliga': load('assets/visa-laliga.png') };
   ELC.setImages(imgs);
   let guides = false;
   const views = [['cA', (c,w,h,t)=>ELC.displayA(c,w,h,t,{guides})], ['cC', (c,w,h,t)=>ELC.displayC(c,w,h,t,{guides})], ['cPillar', ELC.pillar], ['cB', ELC.displayB], ['cOA', ELC.outdoorA], ['cOB', ELC.outdoorB], ['cDR', (c,w,h,t)=>ELC.doors(c,w,h,t,{gap:40})]]
